@@ -5,20 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>দেশি জোটা — Menu Builder</title>
 <link href="https://fonts.googleapis.com/css2?family=Alkatra:wght@400;500;600;700&family=Anek+Bangla:wght@400;500;600;700&family=Atma:wght@400;500;600;700&family=Baloo+Da+2:wght@400;500;600;700&family=Galada&family=Hind+Siliguri:wght@400;500;600;700&family=IBM+Plex+Sans+Bengali:wght@400;500;600;700&family=Mina:wght@400;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;600;700&family=Tiro+Bangla&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 /* ================= CORE ================= */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 :root{
   --bg:#f7f2e7; --ink:#2b2419; --muted:#6f6454; --line:#cfc3a8;
   --accent:#8e1f28; --frame:#8e1f28;
-  --fs-title:27; --fs-head:11.2; --fs-body:10;
+  --fs-title:25; --fs-head:10.6; --fs-body:9.4;
   --w-title:600; --w-head:600; --w-body:500;
-  --c-inset:11; --page-pad:14; --page-pad-b:9; --frame-inset:5;
-  --col-gap:5.5; --row-pad:.62; --head-track:.14em;
+  --c-inset:11; --page-pad:12; --page-pad-b:7; --frame-inset:5;
+  --col-gap:5; --row-pad:.42; --head-track:.12em;
   --font-title:'Tiro Bangla','Noto Serif Bengali',serif;
   --font-head:'Tiro Bangla','Noto Serif Bengali',serif;
   --font-body:'Noto Sans Bengali',sans-serif;
   --studio-w:320px;
+  --qr-size:22;
 }
 html,body{height:100%;background:#d6d0c6}
 body{font-family:var(--font-body);color:#2b2419;overflow:hidden}
@@ -29,10 +32,15 @@ i{font-style:normal}
 .workbench{flex:1;min-width:0;display:flex;flex-direction:column;background:#d6d0c6}
 .wb-bar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:8px 16px;background:#ebe4d7;border-bottom:1px solid #c8c0b4;font:500 12px "Segoe UI",system-ui,sans-serif;color:#3a342e}
+.wb-bar .left,.wb-bar .right{display:flex;align-items:center;gap:10px}
 .wb-bar .zoom{display:flex;gap:0;border:1px solid #b7ae9e}
 .wb-bar .zoom button{background:#f7f2e7;border:0;border-right:1px solid #b7ae9e;padding:5px 12px;font:500 11px "Segoe UI",system-ui,sans-serif;color:#3a342e;cursor:pointer}
 .wb-bar .zoom button:last-child{border-right:0}
 .wb-bar .zoom button.on{background:#2b2419;color:#f7f2e7}
+.wb-bar .hist{display:flex;gap:0;border:1px solid #b7ae9e}
+.wb-bar .hist button{background:#f7f2e7;border:0;border-right:1px solid #b7ae9e;padding:5px 10px;font:500 11px "Segoe UI",system-ui,sans-serif;color:#3a342e;cursor:pointer}
+.wb-bar .hist button:last-child{border-right:0}
+.wb-bar .hist button:disabled{opacity:.4;cursor:default}
 .wb-bar .hint{color:#6f6454;font-size:11px}
 .canvas{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:28px 24px 48px}
 .canvas-inner{transform-origin:top center;transition:transform .15s ease}
@@ -42,11 +50,16 @@ i{font-style:normal}
   padding:calc(var(--page-pad)*1mm) calc(var(--page-pad)*1mm) calc(var(--page-pad-b)*1mm);
   box-shadow:0 2px 10px rgba(0,0,0,.18);text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased}
 .sheet ::selection{background:color-mix(in srgb,var(--accent) 25%,transparent)}
-.sheet.frame-double::before{content:"";position:absolute;inset:calc(var(--frame-inset)*1mm);border:.5mm solid var(--frame);pointer-events:none}
-.sheet.frame-double::after{content:"";position:absolute;inset:calc((var(--frame-inset)+1.5)*1mm);border:.15mm solid var(--frame);opacity:.55;pointer-events:none}
-.sheet.frame-simple::before{content:"";position:absolute;inset:calc(var(--frame-inset)*1mm);border:.4mm solid var(--frame);pointer-events:none}
+.sheet.frame-double::before{content:"";position:absolute;inset:calc(var(--frame-inset)*1mm);border:.5mm solid var(--frame);pointer-events:none;z-index:1}
+.sheet.frame-double::after{content:"";position:absolute;inset:calc((var(--frame-inset)+1.5)*1mm);border:.15mm solid var(--frame);opacity:.55;pointer-events:none;z-index:1}
+.sheet.frame-simple::before{content:"";position:absolute;inset:calc(var(--frame-inset)*1mm);border:.4mm solid var(--frame);pointer-events:none;z-index:1}
 .sheet.frame-simple::after{display:none}
 .sheet.frame-none::before,.sheet.frame-none::after{display:none}
+.sheet.texture .paper-noise{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.07;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:180px 180px;mix-blend-mode:multiply}
+.sheet:not(.texture) .paper-noise{display:none}
+.sheet > *:not(.paper-noise){position:relative;z-index:3}
 
 /* ================= HEADER ================= */
 .head{text-align:center}
@@ -79,8 +92,10 @@ i{font-style:normal}
 /* ================= MENU ================= */
 .cols{display:flex;margin-top:5mm;gap:0}
 .col{flex:1;min-width:0}
-.col.left{padding-right:calc(var(--col-gap)*1mm)}
-.col.right{padding-left:calc(var(--col-gap)*1mm);border-left:.22mm solid var(--line)}
+.cols.cols-1 .col{padding:0;border-left:0}
+.cols.cols-2 .col.left,.cols.cols-3 .col:not(:last-child){padding-right:calc(var(--col-gap)*1mm)}
+.cols.cols-2 .col.right,.cols.cols-3 .col:not(:first-child){padding-left:calc(var(--col-gap)*1mm);border-left:.22mm solid var(--line)}
+.cols.cols-1 .col.left,.cols.cols-1 .col.right,.cols.cols-1 .col.mid{padding:0;border-left:0}
 .sec{margin-bottom:2.7mm}
 .sec:last-child{margin-bottom:0}
 .sec>h2,.ex h3{display:flex;align-items:center;gap:2.4mm;font-family:var(--font-head);font-weight:var(--w-head);
@@ -90,7 +105,9 @@ i{font-style:normal}
 .sec>h2 i,.ex h3 i{flex:1;height:.22mm;background:var(--line)}
 
 .row{display:flex;align-items:baseline;gap:1.5mm;padding:calc(var(--row-pad)*1mm) 0;font-family:var(--font-body)}
+.row .item{display:flex;flex-direction:column;gap:.35mm;min-width:0;max-width:62%}
 .row .name{font-size:calc(var(--fs-body)*1pt);font-weight:var(--w-body)}
+.row .desc{font-size:calc(var(--fs-body)*.78pt);font-weight:400;color:var(--muted);line-height:1.25;letter-spacing:.01em}
 .row .qty{color:var(--muted);font-size:.8em;margin-left:.8mm;white-space:nowrap;font-weight:400}
 .row .lead{flex:1;min-width:3mm;border-bottom:.28mm dotted var(--line);transform:translateY(-1mm)}
 .sheet.lead-dashed .row .lead{border-bottom-style:dashed}
@@ -102,21 +119,40 @@ i{font-style:normal}
 .row.special .price{color:var(--accent)}
 .tag{display:inline-block;background:var(--accent);color:#fff;font-size:.66em;font-weight:700;letter-spacing:.06em;
   padding:.3mm 1.8mm .7mm;border-radius:0;margin-right:1.6mm;vertical-align:.22em}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:3.2mm;height:3.2mm;padding:0 .7mm;
+  margin-right:1mm;border:.2mm solid var(--accent);color:var(--accent);font-size:.58em;font-weight:700;
+  line-height:1;vertical-align:.15em;letter-spacing:.02em;border-radius:0;background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.badge.veg{border-color:#1e6b47;color:#1e6b47;background:color-mix(in srgb,#1e6b47 10%,transparent)}
+.badge.spicy{border-color:#b4532a;color:#b4532a;background:color-mix(in srgb,#b4532a 10%,transparent)}
+.badge.chef{border-color:var(--accent);color:var(--accent)}
 
 .extras{display:flex;margin-top:4mm;padding-top:2.8mm;border-top:.22mm solid var(--line)}
 .ex{flex:1}
 .ex+.ex{border-left:.22mm solid var(--line);padding-left:6mm;margin-left:6mm}
 .ex .row{padding:calc(var(--row-pad)*.85mm) 0}
 
-.foot{margin-top:3.4mm;padding-top:2.4mm;border-top:.22mm solid var(--line);text-align:center;font-family:var(--font-body)}
+.foot{margin-top:3.4mm;padding-top:2.4mm;border-top:.22mm solid var(--line);font-family:var(--font-body)}
+.foot-inner{display:flex;align-items:center;justify-content:space-between;gap:4mm}
+.foot-text{flex:1;text-align:center;min-width:0}
 .foot .note{font-size:8.4pt;color:var(--muted);letter-spacing:.04em}
 .foot .contact{font-size:9.3pt;margin-top:.9mm}
 .foot .contact b{color:var(--accent);font-weight:700}
+.foot .legend{font-size:7.6pt;color:var(--muted);margin-top:1.4mm;letter-spacing:.03em}
+.foot .legend:empty,.foot .legend.hide{display:none}
+.foot .legend .badge{vertical-align:middle;margin-right:.6mm}
+.qr-block{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1.2mm;min-width:calc(var(--qr-size)*1mm)}
+.qr-block.hide{display:none}
+.qr-box{width:calc(var(--qr-size)*1mm);height:calc(var(--qr-size)*1mm);display:flex;align-items:center;justify-content:center;
+  background:#fff;border:.22mm solid var(--line)}
+.qr-box.empty{border-style:dashed;background:transparent}
+.qr-box img,.qr-box canvas{width:100%!important;height:100%!important;display:block}
+.qr-label{font-size:7pt;color:var(--muted);letter-spacing:.04em;text-align:center;max-width:calc(var(--qr-size)*1.4mm);line-height:1.2}
 
 /* ================= EDIT AFFORDANCES ================= */
 [contenteditable]{outline:none;border-radius:0;caret-color:var(--accent)}
 [contenteditable]:hover{outline:1px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:1px}
 [contenteditable]:focus{outline:1.5px solid var(--accent);outline-offset:1px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.sheet.exporting [contenteditable]:hover,.sheet.exporting [contenteditable]:focus{outline:none!important;background:transparent!important}
 
 /* ================= STUDIO SIDEBAR ================= */
 .studio{flex:0 0 var(--studio-w);width:var(--studio-w);height:100vh;background:#f4efe6;border-left:1px solid #c8c0b4;
@@ -141,7 +177,7 @@ i{font-style:normal}
 .studio details[open] summary::before{content:"− "}
 .studio details[open] summary{border-bottom:1px solid #e4dccf}
 .studio details>div{padding:12px 14px 14px;display:flex;flex-direction:column;gap:9px;background:#faf6ef}
-.studio select,.studio input[type=text]{width:100%;padding:6px 8px;border:1px solid #b7ae9e;border-radius:2px;background:#fff;font-size:12px;font-family:inherit;color:#2b2419}
+.studio select,.studio input[type=text],.studio input[type=number]{width:100%;padding:6px 8px;border:1px solid #b7ae9e;border-radius:2px;background:#fff;font-size:12px;font-family:inherit;color:#2b2419}
 .studio input[type=range]{flex:1;accent-color:#2b2419;min-width:0}
 .studio input[type=color]{width:28px;height:24px;border:1px solid #b7ae9e;border-radius:2px;padding:0;background:#fff;cursor:pointer}
 .swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -164,6 +200,15 @@ i{font-style:normal}
 .rowbtns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 .rowbtns button{border:1px solid #b7ae9e;background:#fff;border-radius:2px;padding:7px 4px;cursor:pointer;font-size:11px;color:#3a342e}
 .rowbtns button:hover{background:#ebe4d7}
+.tpl-grid{display:grid;grid-template-columns:1fr;gap:6px}
+.tpl-btn{border:1px solid #b7ae9e;background:#fff;border-radius:2px;padding:8px 10px;cursor:pointer;text-align:left;color:#3a342e}
+.tpl-btn:hover{background:#ebe4d7}
+.tpl-btn.on{outline:2px solid #2b2419;outline-offset:1px;background:#f7f2e7}
+.tpl-btn .t{display:block;font-size:12px;font-weight:600}
+.tpl-btn .s{display:block;font-size:10.5px;color:#8a7f6d;margin-top:2px}
+.col-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.col-btns button{border:1px solid #b7ae9e;background:#fff;border-radius:2px;padding:7px 4px;cursor:pointer;font-size:11px;color:#3a342e}
+.col-btns button.on{background:#2b2419;color:#f7f2e7;border-color:#2b2419}
 .hint{font-size:11px;color:#8a7f6d;line-height:1.5}
 .status{font-size:11px;color:#4a4338}
 .dropzone{border:1px dashed #b7ae9e;border-radius:2px;padding:12px;text-align:center;font-size:11.5px;color:#6f6454;cursor:pointer;background:#fff}
@@ -199,6 +244,8 @@ i{font-style:normal}
   .sheet{margin:0;box-shadow:none}
   [contenteditable]:hover,[contenteditable]:focus{outline:none;background:transparent}
   .logo.drop{outline:none}
+  .qr-block{display:flex!important}
+  .qr-block.hide{display:none!important}
 }
 @media (max-width:900px){
   .app{flex-direction:column;height:auto;overflow:auto}
@@ -216,17 +263,24 @@ i{font-style:normal}
 <div class="app" id="app">
   <div class="workbench">
     <div class="wb-bar">
-      <span>A4 proof · 210 × 297 mm</span>
+      <div class="left">
+        <span>A4 proof · 210 × 297 mm</span>
+        <div class="hist">
+          <button type="button" id="undoBtn" title="Undo (Ctrl+Z)" disabled>Undo</button>
+          <button type="button" id="redoBtn" title="Redo (Ctrl+Y)" disabled>Redo</button>
+        </div>
+      </div>
       <div class="zoom" id="zoomBtns">
         <button type="button" data-z="fit">Fit</button>
         <button type="button" data-z="1" class="on">100%</button>
         <button type="button" data-z="1.25">125%</button>
       </div>
-      <span class="hint">Click text on the sheet to edit</span>
+      <span class="hint">Ctrl+Z undo · Ctrl+P print · click sheet to edit</span>
     </div>
     <div class="canvas" id="canvas">
       <div class="canvas-inner" id="canvasInner">
-        <div class="sheet frame-double" id="sheet">
+        <div class="sheet frame-double texture" id="sheet">
+          <div class="paper-noise" aria-hidden="true"></div>
 
           <header class="head">
             <div class="logo" id="logoBox"><span class="lt">দেশি</span><span class="lt">জোটা</span></div>
@@ -235,7 +289,7 @@ i{font-style:normal}
             <p class="meta">সাফুল্যার রোড়, ফিরিয়াল্লা মার্কেট প্লাজা, গাইবান্ধা<span class="dot">•</span><b>ফোন ০১৭৮৩ ৬৬ ৭৭ ৪৪</b></p>
           </header>
 
-          <div class="cols">
+          <div class="cols cols-2" id="cols">
             <div class="col left">
 
               <div class="sec">
@@ -245,44 +299,44 @@ i{font-style:normal}
 
               <div class="sec">
                 <h2><i></i><span class="st">বিরিয়ানি</span><i></i></h2>
-                <div class="row"><span class="name">চিকেন বিরিয়ানি<span class="qty">(হাফ)</span></span><i class="lead"></i><span class="price">১৩০/=</span></div>
-                <div class="row"><span class="name">মাটন বিরিয়ানি<span class="qty">(ফুল)</span></span><i class="lead"></i><span class="price">২০০/=</span></div>
+                <div class="row"><div class="item"><span class="name">চিকেন বিরিয়ানি<span class="qty">(হাফ)</span></span><span class="desc">মশলাদার চিকেন, দম সেদ্ধ চাল</span></div><i class="lead"></i><span class="price">১৩০/=</span></div>
+                <div class="row"><div class="item"><span class="name">মাটন বিরিয়ানি<span class="qty">(ফুল)</span></span><span class="desc">গরম মসলার ঘ্রাণে মাটন</span></div><i class="lead"></i><span class="price">২০০/=</span></div>
               </div>
 
               <div class="sec">
                 <h2><i></i><span class="st">খিচুড়ি</span><i></i></h2>
-                <div class="row"><span class="name">ভুনা খিচুড়ি<span class="qty">(মাটন • ফুল)</span></span><i class="lead"></i><span class="price">২৩০/=</span></div>
+                <div class="row"><div class="item"><span class="name">ভুনা খিচুড়ি<span class="qty">(মাটন • ফুল)</span></span><span class="desc">ঘন ভুনা মাটনসহ</span></div><i class="lead"></i><span class="price">২৩০/=</span></div>
                 <div class="row"><span class="name">ভুনা খিচুড়ি<span class="qty">(মাটন • হাফ)</span></span><i class="lead"></i><span class="price">১৮০/=</span></div>
-                <div class="row"><span class="name">ভুনা খিচুড়ি<span class="qty">(মাংস ছাড়া • ১ প্লেট)</span></span><i class="lead"></i><span class="price">৫০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">ভুনা খিচুড়ি<span class="qty">(মাংস ছাড়া • ১ প্লেট)</span></span><i class="lead"></i><span class="price">৫০/=</span></div>
               </div>
 
               <div class="sec">
                 <h2><i></i><span class="st">ডাল</span><i></i></h2>
-                <div class="row"><span class="name">মুগ ডাল</span><i class="lead"></i><span class="price">২০/=</span></div>
-                <div class="row"><span class="name">বুটের ডাল</span><i class="lead"></i><span class="price">২০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">মুগ ডাল</span><i class="lead"></i><span class="price">২০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">বুটের ডাল</span><i class="lead"></i><span class="price">২০/=</span></div>
                 <div class="row"><span class="name">মুড়িঘণ্ট<span class="qty">(মাছের মাথা)</span></span><i class="lead"></i><span class="price">৮০/=</span></div>
               </div>
 
               <div class="sec">
                 <h2><i></i><span class="st">সবজি ও ভাজি</span><i></i></h2>
-                <div class="row"><span class="name">মিক্সড ভেজিটেবল</span><i class="lead"></i><span class="price">৩০/=</span></div>
-                <div class="row"><span class="name">করলা ভাজি</span><i class="lead"></i><span class="price">৩০/=</span></div>
-                <div class="row"><span class="name">পাক ভাজি</span><i class="lead"></i><span class="price">৩০/=</span></div>
-                <div class="row"><span class="name">বেগুন ভাজি<span class="qty">(১ পিস)</span></span><i class="lead"></i><span class="price">২০/=</span></div>
-                <div class="row"><span class="name">পটল ভাজি<span class="qty">(২ পিস)</span></span><i class="lead"></i><span class="price">২০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">মিক্সড ভেজিটেবল</span><i class="lead"></i><span class="price">৩০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">করলা ভাজি</span><i class="lead"></i><span class="price">৩০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">পাক ভাজি</span><i class="lead"></i><span class="price">৩০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">বেগুন ভাজি<span class="qty">(১ পিস)</span></span><i class="lead"></i><span class="price">২০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">পটল ভাজি<span class="qty">(২ পিস)</span></span><i class="lead"></i><span class="price">২০/=</span></div>
               </div>
 
               <div class="sec">
                 <h2><i></i><span class="st">ভর্তা</span><i></i></h2>
-                <div class="row"><span class="name">শরিষ ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
-                <div class="row"><span class="name">আলু ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
-                <div class="row"><span class="name">বাদাম ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
-                <div class="row"><span class="name">কালোজিরা ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">শরিষ ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">আলু ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">বাদাম ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">কালোজিরা ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
                 <div class="row"><span class="name">চিংড়ি ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
-                <div class="row"><span class="name">চিব ভর্তা</span><i class="lead"></i><span class="price">২০/=</span></div>
+                <div class="row"><span class="badge spicy" data-badge="spicy" title="ঝাল">ঝ</span><span class="name">চিব ভর্তা</span><i class="lead"></i><span class="price">২০/=</span></div>
                 <div class="row"><span class="name">মাছ ভর্তা</span><i class="lead"></i><span class="price">৩০/=</span></div>
-                <div class="row"><span class="name">ঝটিকা ভর্তা</span><i class="lead"></i><span class="price">৪০/=</span></div>
-                <div class="row special"><span class="name"><span class="tag">কম্বো</span>ইকোনমি ভর্তা প্যাকেজ<span class="qty">(৪টি ভর্তা)</span></span><i class="lead"></i><span class="price">৫০/=</span></div>
+                <div class="row"><span class="badge spicy" data-badge="spicy" title="ঝাল">ঝ</span><span class="name">ঝটিকা ভর্তা</span><i class="lead"></i><span class="price">৪০/=</span></div>
+                <div class="row special"><span class="badge chef" data-badge="chef" title="শেফ স্পেশাল">★</span><span class="name"><span class="tag">কম্বো</span>ইকোনমি ভর্তা প্যাকেজ<span class="qty">(৪টি ভর্তা)</span></span><i class="lead"></i><span class="price">৫০/=</span></div>
               </div>
 
             </div>
@@ -291,15 +345,15 @@ i{font-style:normal}
 
               <div class="sec">
                 <h2><i></i><span class="st">মুরগি</span><i></i></h2>
-                <div class="row"><span class="name">চিকেন কারি<span class="qty">(পাকিস্তানি)</span></span><i class="lead"></i><span class="price">১৪০/=</span></div>
+                <div class="row"><div class="item"><span class="name">চিকেন কারি<span class="qty">(পাকিস্তানি)</span></span><span class="desc">ঘন গ্রেভি, আস্ত মসলা</span></div><i class="lead"></i><span class="price">১৪০/=</span></div>
               </div>
 
               <div class="sec">
                 <h2><i></i><span class="st">গরু</span><i></i></h2>
-                <div class="row"><span class="name">গরু ভুনা<span class="qty">(ফুল)</span></span><i class="lead"></i><span class="price">৩০০/=</span></div>
+                <div class="row"><div class="item"><span class="name">গরু ভুনা<span class="qty">(ফুল)</span></span><span class="desc">ধীরে সেদ্ধ, ঘন মসলা</span></div><i class="lead"></i><span class="price">৩০০/=</span></div>
                 <div class="row"><span class="name">গরু ভুনা<span class="qty">(থ্রি কোয়াটার)</span></span><i class="lead"></i><span class="price">২২০/=</span></div>
                 <div class="row"><span class="name">গরু ভুনা<span class="qty">(হাফ)</span></span><i class="lead"></i><span class="price">১৫০/=</span></div>
-                <div class="row"><span class="name">গরুর কালা ভুনা<span class="qty">(ফুল)</span></span><i class="lead"></i><span class="price">৩৪০/=</span></div>
+                <div class="row"><span class="badge spicy" data-badge="spicy" title="ঝাল">ঝ</span><div class="item"><span class="name">গরুর কালা ভুনা<span class="qty">(ফুল)</span></span><span class="desc">কালো মসলার তীব্র স্বাদ</span></div><i class="lead"></i><span class="price">৩৪০/=</span></div>
                 <div class="row"><span class="name">গরুর কালা ভুনা<span class="qty">(থ্রি কোয়াটার)</span></span><i class="lead"></i><span class="price">২৪০/=</span></div>
                 <div class="row"><span class="name">গরুর কালা ভুনা<span class="qty">(হাফ)</span></span><i class="lead"></i><span class="price">১৯০/=</span></div>
               </div>
@@ -332,14 +386,14 @@ i{font-style:normal}
 
               <div class="sec">
                 <h2><i></i><span class="st">কাবাব</span><i></i></h2>
-                <div class="row"><span class="name">চিকেন টিকিয়া</span><i class="lead"></i><span class="price">৪০/=</span></div>
+                <div class="row"><span class="badge spicy" data-badge="spicy" title="ঝাল">ঝ</span><span class="name">চিকেন টিকিয়া</span><i class="lead"></i><span class="price">৪০/=</span></div>
               </div>
 
               <div class="sec">
                 <h2><i></i><span class="st">আচার ও চাটনি</span><i></i></h2>
-                <div class="row"><span class="name">আচার</span><i class="lead"></i><span class="price">২০/=</span></div>
-                <div class="row"><span class="name">চেম্পটার চাটনি</span><i class="lead"></i><span class="price">২০/=</span></div>
-                <div class="row"><span class="name">আলু-বেগুনের চাটনি</span><i class="lead"></i><span class="price">৩০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">আচার</span><i class="lead"></i><span class="price">২০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">চেম্পটার চাটনি</span><i class="lead"></i><span class="price">২০/=</span></div>
+                <div class="row"><span class="badge veg" data-badge="veg" title="শাকাহারী">স</span><span class="name">আলু-বেগুনের চাটনি</span><i class="lead"></i><span class="price">৩০/=</span></div>
               </div>
 
             </div>
@@ -361,8 +415,17 @@ i{font-style:normal}
           </div>
 
           <div class="foot">
-            <p class="note">সকল খাবারের মূল্য বাজার দরের উপর নির্ভরশীল</p>
-            <p class="contact">সাফুল্যার রোড়, ফিরিয়াল্লা মার্কেট প্লাজা, গাইবান্ধা &nbsp;—&nbsp; <b>ফোন ০১৭৮৩ ৬৬ ৭৭ ৪৪</b></p>
+            <div class="foot-inner">
+              <div class="foot-text">
+                <p class="note">সকল খাবারের মূল্য বাজার দরের উপর নির্ভরশীল</p>
+                <p class="contact">সাফুল্যার রোড়, ফিরিয়াল্লা মার্কেট প্লাজা, গাইবান্ধা &nbsp;—&nbsp; <b>ফোন ০১৭৮৩ ৬৬ ৭৭ ৪৪</b></p>
+                <p class="legend" id="badgeLegend"></p>
+              </div>
+              <div class="qr-block" id="qrBlock">
+                <div class="qr-box empty" id="qrBox"></div>
+                <span class="qr-label" id="qrLabel">মেনু স্ক্যান করুন</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -376,6 +439,14 @@ i{font-style:normal}
       <button type="button" id="minBtn" title="Collapse">‹</button>
     </div>
     <div class="studio-body">
+
+      <details open>
+        <summary>Templates</summary>
+        <div>
+          <div class="tpl-grid" id="tplGrid"></div>
+          <p class="hint">One click sets fonts, theme, frame, leaders and ornament.</p>
+        </div>
+      </details>
 
       <details open>
         <summary>Type</summary>
@@ -407,6 +478,14 @@ i{font-style:normal}
       <details open>
         <summary>Layout</summary>
         <div>
+          <div class="ctl" style="flex-direction:column;align-items:stretch;gap:5px">
+            <span style="width:auto">Columns</span>
+            <div class="col-btns" id="colBtns">
+              <button type="button" data-cols="1">1</button>
+              <button type="button" data-cols="2" class="on">2</button>
+              <button type="button" data-cols="3">3</button>
+            </div>
+          </div>
           <div class="ctl"><span>Margins</span><input type="range" id="pagePad" min="8" max="20" step="0.5"><span class="val" id="pagePadV"></span></div>
           <div class="ctl"><span>Frame inset</span><input type="range" id="frameInset" min="3" max="10" step="0.5"><span class="val" id="frameInsetV"></span></div>
           <div class="ctl"><span>Column gap</span><input type="range" id="colGap" min="3" max="10" step="0.5"><span class="val" id="colGapV"></span></div>
@@ -420,6 +499,7 @@ i{font-style:normal}
             <select id="frameSel" style="flex:1"><option value="double">Double</option><option value="simple">Simple</option><option value="none">None</option></select></label>
           <label class="ctl"><span>Special</span>
             <select id="specialStyle" style="flex:1"><option value="tint">Tint bar</option><option value="rule">Solid rule</option></select></label>
+          <label class="ctl"><span>Paper texture</span><input type="checkbox" id="textureOn" checked></label>
         </div>
       </details>
 
@@ -475,7 +555,32 @@ i{font-style:normal}
             <button type="button" id="addRow">Add row</button><button type="button" id="delRow">Delete</button><button type="button" id="dupRow">Duplicate</button>
             <button type="button" id="addSec">Add section</button><button type="button" id="delSec">Del section</button><button type="button" id="mvSec">Move →</button>
           </div>
+          <div class="rowbtns" style="margin-top:2px">
+            <button type="button" id="badgeVeg" title="Vegetarian">Veg (স)</button>
+            <button type="button" id="badgeSpicy" title="Spicy">Spicy (ঝ)</button>
+            <button type="button" id="badgeChef" title="Chef special">Chef (★)</button>
+          </div>
+          <button type="button" class="ghost neutral" id="addDesc" style="width:100%">Add desc</button>
+          <div class="ctl"><span>Bulk %</span><input type="number" id="bulkPct" step="1" placeholder="+10 or -5" style="flex:1"><button type="button" class="ghost neutral" id="bulkApply" style="padding:6px 10px">Apply</button></div>
           <p class="hint">Click inside a row or section on the sheet, then use the buttons.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Share</summary>
+        <div>
+          <label class="ctl"><span>Show QR</span><input type="checkbox" id="qrShow" checked></label>
+          <div class="ctl" style="flex-direction:column;align-items:stretch;gap:4px">
+            <span style="width:auto">QR URL</span>
+            <input type="text" id="qrUrl" placeholder="https://… (empty = placeholder)">
+          </div>
+          <div class="ctl" style="flex-direction:column;align-items:stretch;gap:4px">
+            <span style="width:auto">QR label</span>
+            <input type="text" id="qrLabelIn" value="মেনু স্ক্যান করুন">
+          </div>
+          <div class="ctl"><span>QR size</span><input type="range" id="qrSize" min="14" max="36" step="1"><span class="val" id="qrSizeV"></span></div>
+          <button type="button" class="ghost neutral" id="pngBtn" style="width:100%">Download PNG</button>
+          <p class="hint">PNG exports the A4 sheet at 2× scale.</p>
         </div>
       </details>
 
@@ -504,8 +609,10 @@ i{font-style:normal}
 
 <script>
 const sheet=document.getElementById('sheet'), root=document.documentElement, $=id=>document.getElementById(id);
-const KEY='deshi-jota-menu-v4';
+const KEY='deshi-jota-menu-v5';
+const OLD_KEYS=['deshi-jota-menu-v4','deshi-jota-menu-v3'];
 let MODE='local', lastRow=null, lastSec=null, zoomMode='1';
+let hist=[], histIdx=-1, histLock=false, histPushT=null;
 
 const FONTS=[
   'Tiro Bangla','Noto Serif Bengali','Noto Sans Bengali','Hind Siliguri','Anek Bangla',
@@ -519,16 +626,52 @@ function fontStack(name){
 
 const DEF_LOGO={src:'',shape:'circle',size:22,zoom:100,x:0,y:0,rot:0,ring:1.2,gap:0.8,
   ringColor:'#111111',bgOn:false,bg:'#ffffff',shadow:false,pos:'tr',inset:11};
+const DEF_QR={show:true,url:'',label:'মেনু স্ক্যান করুন',size:16};
 const DEFAULTS={
   fontTitle:'Tiro Bangla',fontHead:'Tiro Bangla',fontBody:'Noto Sans Bengali',
   wTitle:600,wHead:600,wBody:500,
-  fsTitle:27,fsHead:11.2,fsBody:10,
+  fsTitle:25,fsHead:10.6,fsBody:9.4,
   theme:'ivory',accent:'#8e1f28',ink:'',
-  frame:'double',frameInset:5,pagePad:14,pagePadB:9,colGap:5.5,rowPad:.62,headTrack:.14,
+  frame:'double',frameInset:5,pagePad:12,pagePadB:7,colGap:5,rowPad:.42,headTrack:.12,
   lead:'dotted',ornament:'diamond',specialStyle:'tint',
-  logo:{...DEF_LOGO}
+  columns:2,texture:true,template:'heritage',
+  logo:{...DEF_LOGO},
+  qr:{...DEF_QR}
 };
 let S=JSON.parse(JSON.stringify(DEFAULTS));
+
+const TEMPLATES={
+  heritage:{
+    name:'Classic Heritage',sub:'Tiro + Noto · ivory · maroon',
+    patch:{template:'heritage',fontTitle:'Tiro Bangla',fontHead:'Tiro Bangla',fontBody:'Noto Sans Bengali',
+      wTitle:600,wHead:600,wBody:500,fsTitle:25,fsHead:10.6,fsBody:9.4,
+      theme:'ivory',accent:'#8e1f28',ink:'',frame:'double',lead:'dotted',ornament:'diamond',specialStyle:'tint',texture:true,rowPad:.42,pagePad:12,pagePadB:7}
+  },
+  modern:{
+    name:'Modern Clean',sub:'Hind · paper · forest',
+    patch:{template:'modern',fontTitle:'Hind Siliguri',fontHead:'Hind Siliguri',fontBody:'Hind Siliguri',
+      wTitle:700,wHead:600,wBody:500,fsTitle:26,fsHead:10.5,fsBody:9.8,
+      theme:'paper',accent:'#1e6b47',ink:'',frame:'simple',lead:'none',ornament:'rule',specialStyle:'rule',texture:false}
+  },
+  fine:{
+    name:'Fine Dining',sub:'Serif · blush · navy',
+    patch:{template:'fine',fontTitle:'Noto Serif Bengali',fontHead:'Noto Serif Bengali',fontBody:'Noto Sans Bengali',
+      wTitle:700,wHead:600,wBody:400,fsTitle:28,fsHead:11,fsBody:9.6,
+      theme:'blush',accent:'#1f3a5f',ink:'',frame:'double',lead:'dotted',ornament:'diamond',specialStyle:'tint',texture:true}
+  },
+  kraft:{
+    name:'Kraft Market',sub:'Alkatra · kraft · amber',
+    patch:{template:'kraft',fontTitle:'Alkatra',fontHead:'Alkatra',fontBody:'Hind Siliguri',
+      wTitle:600,wHead:600,wBody:500,fsTitle:26,fsHead:11,fsBody:10,
+      theme:'kraft',accent:'#b4532a',ink:'',frame:'simple',lead:'dashed',ornament:'rule',specialStyle:'tint',texture:true}
+  },
+  night:{
+    name:'Night Bistro',sub:'Tiro · night · gold',
+    patch:{template:'night',fontTitle:'Tiro Bangla',fontHead:'Tiro Bangla',fontBody:'Noto Sans Bengali',
+      wTitle:600,wHead:600,wBody:400,fsTitle:27,fsHead:11,fsBody:9.8,
+      theme:'night',accent:'#9a6b1e',ink:'',frame:'double',lead:'dotted',ornament:'diamond',specialStyle:'rule',texture:false}
+  }
+};
 
 const THEMES={
   ivory:{bg:'#f7f2e7',ink:'#2b2419',muted:'#6f6454',line:'#cfc3a8'},
@@ -539,12 +682,21 @@ const THEMES={
   night:{bg:'#241f1c',ink:'#f1e8d7',muted:'#a5968a',line:'#4b423a'}
 };
 const ACCENTS=['#8e1f28','#1e6b47','#1f3a5f','#b4532a','#9a6b1e','#1c1c1c'];
+const BADGE_META={
+  veg:{cls:'veg',txt:'স',label:'স শাকাহারী'},
+  spicy:{cls:'spicy',txt:'ঝ',label:'ঝ ঝাল'},
+  chef:{cls:'chef',txt:'★',label:'★ শেফ স্পেশাল'}
+};
+const BN='০১২৩৪৫৬৭৮৯', EN='0123456789';
 
 /* ---------- helpers ---------- */
 let toastT;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2200);}
 function status(m){$('status').textContent=m;}
 function lum(hex){const n=parseInt(hex.slice(1),16);return(0.2126*(n>>16&255)+0.7152*(n>>8&255)+0.0722*(n&255))/255;}
 function checkOverflow(){$('ovf').classList.toggle('on',sheet.scrollHeight>sheet.clientHeight+2);}
+function bn2en(s){return String(s).replace(/[০-৯]/g,c=>EN[BN.indexOf(c)]);}
+function en2bn(s){return String(s).replace(/[0-9]/g,c=>BN[+c]);}
+function cloneS(){return JSON.parse(JSON.stringify(S));}
 
 function fillFontSelect(sel){
   sel.innerHTML='';
@@ -557,15 +709,229 @@ function fillFontSelect(sel){
 }
 ['fontTitle','fontHead','fontBody'].forEach(id=>fillFontSelect($(id)));
 
+/* ---------- history ---------- */
+function snapState(){return {S:cloneS(),html:sheet.innerHTML};}
+function updateHistBtns(){
+  $('undoBtn').disabled=histIdx<=0;
+  $('redoBtn').disabled=histIdx<0||histIdx>=hist.length-1;
+}
+function pushHistory(force){
+  if(histLock) return;
+  clearTimeout(histPushT);
+  const go=()=>{
+    if(histLock) return;
+    const snap=snapState();
+    const cur=hist[histIdx];
+    if(cur&&JSON.stringify(cur)===JSON.stringify(snap)) return;
+    hist=hist.slice(0,histIdx+1);
+    hist.push(snap);
+    if(hist.length>40) hist.shift();
+    histIdx=hist.length-1;
+    updateHistBtns();
+  };
+  if(force) go(); else histPushT=setTimeout(go,450);
+}
+function restoreSnap(snap){
+  histLock=true;
+  S={...DEFAULTS,...snap.S};
+  S.logo={...DEF_LOGO,...(snap.S.logo||{})};
+  S.qr={...DEF_QR,...(snap.S.qr||{})};
+  sheet.innerHTML=snap.html;
+  makeEditable();apply();syncLogoUI();syncQrUI();refreshLib();updateLegend();renderQR();
+  histLock=false;
+  updateHistBtns();
+  checkOverflow();
+}
+function undo(){
+  if(histIdx<=0) return;
+  histIdx--; restoreSnap(hist[histIdx]); toast('Undo');
+}
+function redo(){
+  if(histIdx>=hist.length-1) return;
+  histIdx++; restoreSnap(hist[histIdx]); toast('Redo');
+}
+
 /* ---------- editable ---------- */
 function editable(el){el.setAttribute('contenteditable','plaintext-only');if(el.contentEditable!=='plaintext-only')el.setAttribute('contenteditable','true');}
 function makeEditable(){
-  document.querySelectorAll('.sheet .st,.sheet .name,.sheet .qty,.sheet .price,.sheet .tag,.sheet .lt,.sheet .brand,.sheet .meta,.sheet .note,.sheet .contact,.sheet .orn span').forEach(editable);
+  document.querySelectorAll('.sheet .st,.sheet .name,.sheet .qty,.sheet .price,.sheet .tag,.sheet .lt,.sheet .brand,.sheet .meta,.sheet .note,.sheet .contact,.sheet .orn span,.sheet .desc,.sheet .qr-label').forEach(editable);
+}
+
+/* ---------- badges / legend ---------- */
+function updateLegend(){
+  const leg=$('badgeLegend'); if(!leg) return;
+  const present=new Set();
+  sheet.querySelectorAll('.badge[data-badge]').forEach(b=>present.add(b.dataset.badge));
+  if(!present.size){leg.textContent='';leg.classList.add('hide');return;}
+  leg.classList.remove('hide');
+  const parts=[];
+  ['veg','spicy','chef'].forEach(k=>{
+    if(!present.has(k)) return;
+    const m=BADGE_META[k];
+    parts.push(`<span class="badge ${m.cls}">${m.txt}</span> ${m.label.split(' ').slice(1).join(' ')}`);
+  });
+  leg.innerHTML=parts.join(' &nbsp;·&nbsp; ');
+}
+function ensureItemBlock(row){
+  let item=row.querySelector(':scope > .item');
+  if(item) return item;
+  const name=row.querySelector(':scope > .name');
+  if(!name) return null;
+  item=document.createElement('div');item.className='item';
+  name.replaceWith(item);item.appendChild(name);
+  return item;
+}
+function toggleBadge(kind){
+  if(!(lastRow&&lastRow.isConnected)) return toast('Click inside a row first');
+  const existing=lastRow.querySelector(`.badge[data-badge="${kind}"]`);
+  if(existing){existing.remove();}
+  else{
+    const m=BADGE_META[kind];
+    const b=document.createElement('span');
+    b.className='badge '+m.cls;b.dataset.badge=kind;b.title=m.label;b.textContent=m.txt;
+    const first=lastRow.firstElementChild;
+    if(first&&first.classList.contains('item')) lastRow.insertBefore(b,first);
+    else if(first&&first.classList.contains('badge')){
+      const badges=[...lastRow.querySelectorAll(':scope > .badge')];
+      const lastB=badges[badges.length-1];
+      lastB.after(b);
+    }else lastRow.insertBefore(b,lastRow.firstChild);
+  }
+  updateLegend();persist();
+}
+
+/* ---------- columns ---------- */
+function gatherSecs(){
+  const colsRoot=$('cols')||sheet.querySelector('.cols');
+  return [...colsRoot.querySelectorAll(':scope > .col > .sec')];
+}
+function setColumns(n,skipPersist){
+  n=Math.max(1,Math.min(3,+n||2));
+  S.columns=n;
+  const colsRoot=$('cols')||sheet.querySelector('.cols');
+  if(!colsRoot) return;
+  const secs=gatherSecs();
+  colsRoot.innerHTML='';
+  colsRoot.className='cols cols-'+n;
+  const names=n===1?['left']:n===2?['left','right']:['left','mid','right'];
+  const buckets=names.map((cls,i)=>{
+    const c=document.createElement('div');
+    c.className='col '+cls;
+    colsRoot.appendChild(c);
+    return c;
+  });
+  secs.forEach((sec,i)=>buckets[i%n].appendChild(sec));
+  buckets.forEach(c=>{
+    if(!c.querySelector('.sec')){
+      const sec=document.createElement('div');sec.className='sec';
+      sec.innerHTML='<h2><i></i><span class="st">নতুন সেকশন</span><i></i></h2>';
+      sec.appendChild(freshRow());
+      c.appendChild(sec);
+      makeEditable();
+    }
+  });
+  document.querySelectorAll('#colBtns button').forEach(b=>b.classList.toggle('on',+b.dataset.cols===n));
+  checkOverflow();
+  if(!skipPersist) persist();
+}
+
+/* ---------- QR ---------- */
+function syncQrUI(){
+  const q=S.qr||DEF_QR;
+  $('qrShow').checked=!!q.show;
+  $('qrUrl').value=q.url||'';
+  $('qrLabelIn').value=q.label||'মেনু স্ক্যান করুন';
+  $('qrSize').value=q.size||22;
+  $('qrSizeV').textContent=(q.size||22)+'mm';
+}
+function ensureSheetChrome(){
+  if(!sheet.querySelector('.paper-noise')){
+    const n=document.createElement('div');n.className='paper-noise';n.setAttribute('aria-hidden','true');
+    sheet.prepend(n);
+  }
+  let foot=sheet.querySelector('.foot');
+  if(!foot){
+    foot=document.createElement('div');foot.className='foot';
+    sheet.appendChild(foot);
+  }
+  let inner=foot.querySelector('.foot-inner');
+  if(!inner){
+    const note=foot.querySelector('.note');
+    const contact=foot.querySelector('.contact');
+    inner=document.createElement('div');inner.className='foot-inner';
+    const text=document.createElement('div');text.className='foot-text';
+    if(note) text.appendChild(note);
+    if(contact) text.appendChild(contact);
+    if(!note){const p=document.createElement('p');p.className='note';p.textContent='সকল খাবারের মূল্য বাজার দরের উপর নির্ভরশীল';text.appendChild(p);}
+    if(!contact){const p=document.createElement('p');p.className='contact';p.innerHTML='সাফুল্যার রোড়, ফিরিয়াল্লা মার্কেট প্লাজা, গাইবান্ধা &nbsp;—&nbsp; <b>ফোন ০১৭৮৩ ৬৬ ৭৭ ৪৪</b>';text.appendChild(p);}
+    const leg=document.createElement('p');leg.className='legend';leg.id='badgeLegend';text.appendChild(leg);
+    const qr=document.createElement('div');qr.className='qr-block';qr.id='qrBlock';
+    qr.innerHTML='<div class="qr-box empty" id="qrBox"></div><span class="qr-label" id="qrLabel">মেনু স্ক্যান করুন</span>';
+    inner.appendChild(text);inner.appendChild(qr);
+    foot.innerHTML='';foot.appendChild(inner);
+  }else{
+    if(!inner.querySelector('#badgeLegend')){
+      const text=inner.querySelector('.foot-text')||inner;
+      const leg=document.createElement('p');leg.className='legend';leg.id='badgeLegend';text.appendChild(leg);
+    }
+    if(!inner.querySelector('#qrBlock')){
+      const qr=document.createElement('div');qr.className='qr-block';qr.id='qrBlock';
+      qr.innerHTML='<div class="qr-box empty" id="qrBox"></div><span class="qr-label" id="qrLabel">মেনু স্ক্যান করুন</span>';
+      inner.appendChild(qr);
+    }
+  }
+  if(!$('logoBox')){
+    const head=sheet.querySelector('.head');
+    if(head&&!head.querySelector('#logoBox')){
+      const logo=document.createElement('div');logo.className='logo';logo.id='logoBox';
+      logo.innerHTML='<span class="lt">দেশি</span><span class="lt">জোটা</span>';
+      head.prepend(logo);
+    }
+  }
+  if(!$('orn')){
+    const head=sheet.querySelector('.head');
+    const brand=head&&head.querySelector('.brand');
+    if(head&&brand){
+      const orn=document.createElement('div');orn.className='orn orn-diamond';orn.id='orn';
+      orn.innerHTML='<i></i><span>❖</span><i></i>';
+      brand.after(orn);
+    }
+  }
+  if(!$('cols')){
+    const cols=sheet.querySelector('.cols');
+    if(cols) cols.id='cols';
+  }
+}
+
+function renderQR(){
+  ensureSheetChrome();
+  const q=S.qr||DEF_QR;
+  const block=$('qrBlock'), box=$('qrBox'), label=$('qrLabel');
+  if(!block||!box) return;
+  block.classList.toggle('hide',!q.show);
+  root.style.setProperty('--qr-size',q.size||22);
+  if(label){label.textContent=q.label||'মেনু স্ক্যান করুন';}
+  box.innerHTML='';
+  const url=(q.url||'').trim();
+  if(!url){
+    box.classList.add('empty');
+    box.innerHTML='<span style="font-size:7pt;color:var(--muted);text-align:center;padding:2mm;line-height:1.3">URL যোগ করুন</span>';
+    return;
+  }
+  box.classList.remove('empty');
+  try{
+    const px=Math.round((q.size||22)*3.78);
+    new QRCode(box,{text:url,width:px,height:px,correctLevel:QRCode.CorrectLevel.M});
+  }catch(e){
+    box.classList.add('empty');
+    box.textContent='QR error';
+  }
 }
 
 /* ---------- logo ---------- */
 function logoStyle(){
   const l=S.logo, box=$('logoBox');
+  if(!box) return;
   box.classList.toggle('img',!!l.src);
   box.classList.remove('corner','tr','tl','br','bl');
   if(l.pos!=='tc') box.classList.add('corner',l.pos);
@@ -662,6 +1028,15 @@ function migrate(d){
   if(d.fontHead&&!d.fontTitle) d.fontTitle=d.fontHead;
   if(d.fs!=null&&d.fsBody==null){d.fsBody=d.fs;d.fsHead=+(d.fs*1.12).toFixed(1);d.fsTitle=27;}
   if(d.fontTitle==null&&d.fontHead) d.fontTitle=d.fontHead;
+  if(d.columns==null) d.columns=2;
+  if(d.texture==null) d.texture=true;
+  if(!d.qr) d.qr={...DEF_QR};
+  if(d.template==null) d.template='heritage';
+}
+function applyTemplate(id){
+  const t=TEMPLATES[id]; if(!t) return;
+  Object.assign(S,t.patch);
+  apply();persist();toast(t.name+' applied');
 }
 function apply(){
   root.style.setProperty('--fs-title',S.fsTitle);
@@ -686,8 +1061,9 @@ function apply(){
   root.style.setProperty('--accent',S.accent);
   root.style.setProperty('--frame',S.accent);
 
-  sheet.classList.remove('frame-double','frame-simple','frame-none','lead-dotted','lead-dashed','lead-none','special-tint','special-rule');
+  sheet.classList.remove('frame-double','frame-simple','frame-none','lead-dotted','lead-dashed','lead-none','special-tint','special-rule','texture');
   sheet.classList.add('frame-'+S.frame,'lead-'+S.lead,'special-'+S.specialStyle);
+  if(S.texture) sheet.classList.add('texture');
 
   const orn=$('orn');
   if(orn){
@@ -695,6 +1071,18 @@ function apply(){
     const sp=orn.querySelector('span');
     if(sp&&S.ornament==='diamond') sp.textContent='❖';
   }
+
+  const colsRoot=$('cols')||sheet.querySelector('.cols');
+  if(colsRoot){
+    const n=S.columns||2;
+    colsRoot.classList.remove('cols-1','cols-2','cols-3');
+    colsRoot.classList.add('cols-'+n);
+    const colCount=colsRoot.querySelectorAll(':scope > .col').length;
+    if(colCount!==n) setColumns(n,true);
+  }
+  document.querySelectorAll('#colBtns button').forEach(b=>b.classList.toggle('on',+b.dataset.cols===(S.columns||2)));
+  document.querySelectorAll('#tplGrid .tpl-btn').forEach(b=>b.classList.toggle('on',b.dataset.id===S.template));
+  if($('textureOn')) $('textureOn').checked=!!S.texture;
 
   $('fsTitleV').textContent=Number(S.fsTitle).toFixed(1)+'pt';
   $('fsHeadV').textContent=Number(S.fsHead).toFixed(1)+'pt';
@@ -717,6 +1105,8 @@ function apply(){
   document.querySelectorAll('#bgSw .sw').forEach(b=>b.classList.toggle('active',b.dataset.id===S.theme));
   document.querySelectorAll('#acSw .sw').forEach(b=>b.classList.toggle('active',b.dataset.c===S.accent));
   logoStyle();
+  renderQR();
+  updateLegend();
   checkOverflow();
 }
 function syncLogoUI(){
@@ -730,7 +1120,11 @@ function syncLogoUI(){
 
 /* ---------- persistence ---------- */
 let saveT;
-function persist(){clearTimeout(saveT);saveT=setTimeout(doSave,800);}
+function persist(){
+  clearTimeout(saveT);
+  saveT=setTimeout(doSave,800);
+  pushHistory(false);
+}
 function snapshot(){return JSON.stringify({S,html:sheet.innerHTML,ts:Date.now()});}
 async function doSave(){
   const data=snapshot();
@@ -755,43 +1149,58 @@ async function loadAll(){
   const pill=$('pill');pill.textContent=MODE==='server'?'Server':'Browser';pill.classList.toggle('server',MODE==='server');
   let d=null;
   if(MODE==='server'){try{d=await (await fetch('/api/menu',{cache:'no-store'})).json();}catch(e){}}
-  if(!d){try{d=JSON.parse(localStorage.getItem(KEY));}catch(e){}}
-  if(!d){try{d=JSON.parse(localStorage.getItem('deshi-jota-menu-v3'));}catch(e){}}
+  if(!d||!d.S){try{d=JSON.parse(localStorage.getItem(KEY));}catch(e){}}
+  if(!d||!d.S){
+    for(const k of OLD_KEYS){
+      try{d=JSON.parse(localStorage.getItem(k)); if(d&&d.S) break;}catch(e){}
+    }
+  }
   if(d&&d.S){
     migrate(d.S);
     S={...DEFAULTS,...d.S};
     S.logo={...DEF_LOGO,...(d.S.logo||{})};
+    S.qr={...DEF_QR,...(d.S.qr||{})};
     if(d.html)sheet.innerHTML=d.html;
   }
-  makeEditable();apply();syncLogoUI();refreshLib();checkOverflow();
+  ensureSheetChrome();
+  makeEditable();apply();syncLogoUI();syncQrUI();refreshLib();checkOverflow();
+  hist=[snapState()];histIdx=0;updateHistBtns();
   status(MODE==='server'?'Connected to server':'Browser-only mode');
   setZoom('1');
 }
 
+/* ---------- templates UI ---------- */
+Object.entries(TEMPLATES).forEach(([id,t])=>{
+  const b=document.createElement('button');b.type='button';b.className='tpl-btn';b.dataset.id=id;
+  b.innerHTML=`<span class="t">${t.name}</span><span class="s">${t.sub}</span>`;
+  b.onclick=()=>applyTemplate(id);
+  $('tplGrid').appendChild(b);
+});
+
 /* ---------- swatches ---------- */
 Object.entries(THEMES).forEach(([id,t])=>{
   const b=document.createElement('button');b.type='button';b.className='sw';b.style.background=t.bg;b.title=id;b.dataset.id=id;
-  b.onclick=()=>{S.theme=id;S.ink='';apply();persist();};$('bgSw').appendChild(b);
+  b.onclick=()=>{S.theme=id;S.ink='';S.template='';apply();persist();};$('bgSw').appendChild(b);
 });
 const bc=document.createElement('input');bc.type='color';bc.title='Custom paper';$('bgSw').appendChild(bc);
 bc.addEventListener('input',e=>{
-  const hex=e.target.value,L=lum(hex);S.theme='custom';S.ink='';
+  const hex=e.target.value,L=lum(hex);S.theme='custom';S.ink='';S.template='';
   S.custom=L<0.45?{bg:hex,ink:'#f2ead8',muted:'#b4a48e',line:'rgba(255,255,255,.28)'}
                  :{bg:hex,ink:'#2b2419',muted:'#6f6454',line:'#cfc3a8'};
   apply();persist();
 });
 ACCENTS.forEach(c=>{
   const b=document.createElement('button');b.type='button';b.className='sw';b.style.background=c;b.title=c;b.dataset.c=c;
-  b.onclick=()=>{S.accent=c;apply();persist();};$('acSw').appendChild(b);
+  b.onclick=()=>{S.accent=c;S.template='';apply();persist();};$('acSw').appendChild(b);
 });
 const ac=document.createElement('input');ac.type='color';ac.title='Custom accent';$('acSw').appendChild(ac);
-ac.addEventListener('input',e=>{S.accent=e.target.value;apply();persist();});
+ac.addEventListener('input',e=>{S.accent=e.target.value;S.template='';apply();persist();});
 $('inkC').addEventListener('input',e=>{S.ink=e.target.value;apply();persist();});
 
 /* ---------- type / layout controls ---------- */
-$('fontTitle').onchange=e=>{S.fontTitle=e.target.value;apply();persist();};
-$('fontHead').onchange=e=>{S.fontHead=e.target.value;apply();persist();};
-$('fontBody').onchange=e=>{S.fontBody=e.target.value;apply();persist();};
+$('fontTitle').onchange=e=>{S.fontTitle=e.target.value;S.template='';apply();persist();};
+$('fontHead').onchange=e=>{S.fontHead=e.target.value;S.template='';apply();persist();};
+$('fontBody').onchange=e=>{S.fontBody=e.target.value;S.template='';apply();persist();};
 $('wTitle').onchange=e=>{S.wTitle=+e.target.value;apply();persist();};
 $('wHead').onchange=e=>{S.wHead=+e.target.value;apply();persist();};
 $('wBody').onchange=e=>{S.wBody=+e.target.value;apply();persist();};
@@ -803,10 +1212,15 @@ $('frameInset').oninput=e=>{S.frameInset=parseFloat(e.target.value);apply();pers
 $('colGap').oninput=e=>{S.colGap=parseFloat(e.target.value);apply();persist();};
 $('rowPad').oninput=e=>{S.rowPad=parseFloat(e.target.value);apply();persist();};
 $('headTrack').oninput=e=>{S.headTrack=parseFloat(e.target.value);apply();persist();};
-$('leadStyle').onchange=e=>{S.lead=e.target.value;apply();persist();};
-$('ornStyle').onchange=e=>{S.ornament=e.target.value;apply();persist();};
-$('frameSel').onchange=e=>{S.frame=e.target.value;apply();persist();};
-$('specialStyle').onchange=e=>{S.specialStyle=e.target.value;apply();persist();};
+$('leadStyle').onchange=e=>{S.lead=e.target.value;S.template='';apply();persist();};
+$('ornStyle').onchange=e=>{S.ornament=e.target.value;S.template='';apply();persist();};
+$('frameSel').onchange=e=>{S.frame=e.target.value;S.template='';apply();persist();};
+$('specialStyle').onchange=e=>{S.specialStyle=e.target.value;S.template='';apply();persist();};
+$('textureOn').onchange=e=>{S.texture=e.target.checked;apply();persist();};
+$('colBtns').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-cols]'); if(!b) return;
+  setColumns(+b.dataset.cols);
+});
 
 /* ---------- logo controls ---------- */
 $('lPos').onchange=e=>{S.logo.pos=e.target.value;logoStyle();persist();};
@@ -828,6 +1242,29 @@ const lb=$('logoBox');
 ['dragleave','drop'].forEach(ev=>lb.addEventListener(ev,e=>{e.preventDefault();lb.classList.remove('drop');}));
 lb.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)handleLogoFile(f);});
 
+/* ---------- QR / share ---------- */
+$('qrShow').onchange=e=>{S.qr.show=e.target.checked;renderQR();persist();};
+$('qrUrl').oninput=e=>{S.qr.url=e.target.value;renderQR();persist();};
+$('qrLabelIn').oninput=e=>{
+  S.qr.label=e.target.value;
+  const lab=$('qrLabel'); if(lab) lab.textContent=S.qr.label;
+  persist();
+};
+$('qrSize').oninput=e=>{S.qr.size=parseFloat(e.target.value);$('qrSizeV').textContent=S.qr.size+'mm';renderQR();persist();};
+$('pngBtn').onclick=async ()=>{
+  if(typeof html2canvas!=='function') return toast('PNG library not loaded');
+  sheet.classList.add('exporting');
+  try{
+    const canvas=await html2canvas(sheet,{scale:2,useCORS:true,backgroundColor:null,logging:false});
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/png');
+    a.download='deshi-jota-menu.png';
+    a.click();
+    toast('PNG downloaded');
+  }catch(err){toast('PNG export failed');}
+  finally{sheet.classList.remove('exporting');}
+};
+
 /* ---------- items / sections ---------- */
 sheet.addEventListener('focusin',e=>{
   lastRow=e.target.closest('.row')||lastRow;
@@ -841,20 +1278,59 @@ $('addRow').onclick=()=>{
   if(lastRow&&lastRow.isConnected)lastRow.after(r);
   else (lastSec&&lastSec.isConnected?lastSec:document.querySelector('.sec')).appendChild(r);
   lastRow=r;persist();r.querySelector('.name').focus();};
-$('delRow').onclick=()=>{if(lastRow&&lastRow.isConnected){lastRow.remove();lastRow=null;persist();}else toast('Click inside a row first');};
+$('delRow').onclick=()=>{if(lastRow&&lastRow.isConnected){lastRow.remove();lastRow=null;updateLegend();persist();}else toast('Click inside a row first');};
 $('dupRow').onclick=()=>{
   if(!(lastRow&&lastRow.isConnected))return toast('Click inside a row first');
-  const c=lastRow.cloneNode(true);c.querySelectorAll('.name,.qty,.price,.tag').forEach(editable);
-  lastRow.after(c);lastRow=c;persist();};
+  const c=lastRow.cloneNode(true);c.querySelectorAll('.name,.qty,.price,.tag,.desc').forEach(editable);
+  lastRow.after(c);lastRow=c;updateLegend();persist();};
 $('rowUp').onclick=()=>{if(lastRow&&lastRow.isConnected){const s=lastRow.previousElementSibling;if(s)lastRow.before(s);persist();}};
 $('rowDn').onclick=()=>{if(lastRow&&lastRow.isConnected){const s=lastRow.nextElementSibling;if(s)lastRow.after(s);persist();}};
 $('tglSp').onclick=()=>{
   if(!(lastRow&&lastRow.isConnected))return toast('Click inside a row first');
   lastRow.classList.toggle('special');
   if(lastRow.classList.contains('special')){
-    if(!lastRow.querySelector('.tag')){const tg=document.createElement('span');tg.className='tag';tg.textContent='কম্বো';editable(tg);lastRow.querySelector('.name').prepend(tg);}
+    const nameEl=lastRow.querySelector('.name');
+    if(nameEl&&!nameEl.querySelector('.tag')){const tg=document.createElement('span');tg.className='tag';tg.textContent='কম্বো';editable(tg);nameEl.prepend(tg);}
   }else{const tg=lastRow.querySelector('.tag');if(tg)tg.remove();}
   persist();};
+$('badgeVeg').onclick=()=>toggleBadge('veg');
+$('badgeSpicy').onclick=()=>toggleBadge('spicy');
+$('badgeChef').onclick=()=>toggleBadge('chef');
+$('addDesc').onclick=()=>{
+  if(!(lastRow&&lastRow.isConnected)) return toast('Click inside a row first');
+  let item=lastRow.querySelector(':scope > .item');
+  if(!item){
+    item=ensureItemBlock(lastRow);
+    if(!item){
+      const name=lastRow.querySelector('.name');
+      if(!name) return toast('No item name found');
+      item=document.createElement('div');item.className='item';
+      name.replaceWith(item);item.appendChild(name);
+    }
+  }
+  let desc=item.querySelector('.desc');
+  if(desc){desc.focus();return;}
+  desc=document.createElement('span');desc.className='desc';desc.textContent='সংক্ষিপ্ত বিবরণ…';
+  editable(desc);item.appendChild(desc);persist();desc.focus();
+};
+function adjustPrice(el,pct){
+  const txt=el.textContent.trim();
+  if(!txt||txt==='—'||txt==='-') return;
+  const raw=bn2en(txt);
+  const m=raw.match(/(\d+(?:\.\d+)?)/);
+  if(!m) return;
+  const n=Math.round(parseFloat(m[1])*(1+pct/100));
+  const usedBn=/[০-৯]/.test(txt);
+  const numStr=usedBn?en2bn(String(n)):String(n);
+  // Replace first number sequence (Bangla or English digits)
+  el.textContent=txt.replace(/[০-৯0-9]+(?:\.[০-৯0-9]+)?/,numStr);
+}
+$('bulkApply').onclick=()=>{
+  const pct=parseFloat($('bulkPct').value);
+  if(isNaN(pct)) return toast('Enter a percent, e.g. 10 or -5');
+  sheet.querySelectorAll('.price').forEach(el=>adjustPrice(el,pct));
+  persist();toast('Prices adjusted '+pct+'%');
+};
 $('addSec').onclick=()=>{
   const sec=document.createElement('div');sec.className='sec';
   sec.innerHTML='<h2><i></i><span class="st">নতুন সেকশন</span><i></i></h2>';
@@ -868,11 +1344,13 @@ $('delSec').onclick=()=>{
   if(lastSec.classList.contains('ex'))return toast('Dessert/Drinks bar: edit text instead');
   const sibs=lastSec.parentElement.querySelectorAll(':scope > .sec');
   if(sibs.length<=1)return toast('A column needs at least one section');
-  if(confirm('Delete this whole section?')){lastSec.remove();lastSec=null;persist();}};
+  if(confirm('Delete this whole section?')){lastSec.remove();lastSec=null;updateLegend();persist();}};
 $('mvSec').onclick=()=>{
   if(!(lastSec&&lastSec.isConnected&&lastSec.classList.contains('sec')))return toast('Click inside a section first');
-  const cols=document.querySelectorAll('.col');
-  const target=lastSec.parentElement===cols[0]?cols[1]:cols[0];
+  const cols=[...document.querySelectorAll('#cols > .col, .cols > .col')];
+  if(cols.length<2) return toast('Need 2+ columns to move');
+  const idx=cols.indexOf(lastSec.parentElement);
+  const target=cols[(idx+1)%cols.length];
   target.appendChild(lastSec);persist();toast('Section moved');};
 
 /* ---------- data ---------- */
@@ -884,20 +1362,44 @@ $('impFile').onchange=e=>{
   const f=e.target.files[0];if(!f)return;const r=new FileReader();
   r.onload=()=>{try{const d=JSON.parse(r.result);
     migrate(d.S);
-    S={...DEFAULTS,...d.S};S.logo={...DEF_LOGO,...(d.S&&d.S.logo||{})};
+    S={...DEFAULTS,...d.S};S.logo={...DEF_LOGO,...(d.S&&d.S.logo||{})};S.qr={...DEF_QR,...(d.S&&d.S.qr||{})};
     if(d.html)sheet.innerHTML=d.html;
-    makeEditable();apply();syncLogoUI();refreshLib();checkOverflow();persist();toast('Backup imported');
+    ensureSheetChrome();
+    makeEditable();apply();syncLogoUI();syncQrUI();refreshLib();checkOverflow();persist();toast('Backup imported');
   }catch(err){toast('Invalid backup file');}};
   r.readAsText(f);e.target.value='';};
-$('resetBtn').onclick=()=>{if(confirm('Reset ALL text, logo and design to default?')){localStorage.removeItem(KEY);localStorage.removeItem('deshi-jota-menu-v3');location.reload();}};
+$('resetBtn').onclick=()=>{
+  if(confirm('Reset ALL text, logo and design to default?')){
+    localStorage.removeItem(KEY);
+    OLD_KEYS.forEach(k=>localStorage.removeItem(k));
+    location.reload();
+  }
+};
 $('printBtn').onclick=()=>window.print();
+$('undoBtn').onclick=undo;
+$('redoBtn').onclick=redo;
 $('minBtn').onclick=()=>{
   const s=$('studio');s.classList.toggle('min');
   $('minBtn').textContent=s.classList.contains('min')?'›':'‹';
   $('toast').classList.toggle('full',s.classList.contains('min'));
   setTimeout(()=>{if(zoomMode==='fit')setZoom('fit');},50);
 };
-sheet.addEventListener('input',persist);
+sheet.addEventListener('input',()=>{updateLegend();persist();});
+
+document.addEventListener('keydown',e=>{
+  const mod=e.ctrlKey||e.metaKey;
+  if(!mod) return;
+  const t=e.target;
+  const typing=t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  if((e.key==='z'||e.key==='Z')&&!e.shiftKey){
+    if(typing&&t.isContentEditable===false) return;
+    e.preventDefault();undo();
+  }else if(e.key==='y'||e.key==='Y'||((e.key==='z'||e.key==='Z')&&e.shiftKey)){
+    e.preventDefault();redo();
+  }else if(e.key==='p'||e.key==='P'){
+    /* browser print still works; hint only */
+  }
+});
 
 loadAll();
 </script>
