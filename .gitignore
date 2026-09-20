@@ -1,0 +1,10 @@
+node_modules/
+uploads/
+menu-data.json
+menu-data.json.bak
+menu-data.json.tmp
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*

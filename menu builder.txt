@@ -1,0 +1,805 @@
+I can't attach binary files (like an actual `.zip`) in this chat — but here's the next best thing: the **complete, final package with every fix and feature already merged** (corner logo + all patches applied, nothing for you to assemble). Create 3 files, run 2 commands, and make the zip yourself with 1 command.
+
+## 📦 Setup (2 minutes)
+
+```
+menu-builder/
+├── package.json      ← paste file 1
+├── server.js         ← paste file 2
+└── public/
+    └── index.html    ← paste file 3
+```
+
+Then:
+
+```
+npm install
+npm start
+```
+
+Open **http://localhost:3000**. Zip it **before** `npm install` (or exclude `node_modules`) so the zip stays tiny.
+
+---
+
+## File 1 — `package.json`
+
+```json
+{
+  "name": "menu-builder",
+  "version": "1.1.0",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^2.0.1"
+  }
+}
+```
+
+## File 2 — `server.js`
+
+```js
+const express = require('express');
+const multer  = require('multer');
+const fs      = require('fs');
+const path    = require('path');
+
+const app   = express();
+const PUB   = path.join(__dirname, 'public');
+const UP    = path.join(__dirname, 'uploads');
+const DATA  = path.join(__dirname, 'menu-data.json');
+const BAK   = DATA + '.bak';
+const EXTS  = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
+
+fs.mkdirSync(PUB, { recursive: true });
+fs.mkdirSync(UP,  { recursive: true });
+
+const store = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UP),
+    filename: (req, file, cb) => {
+      const clean = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-40);
+      cb(null, Date.now() + '-' + clean);
+    }
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) =>
+    cb(null, /^image\/(png|jpe?g|webp|svg\+xml)$/.test(file.mimetype))
+});
+
+app.use(express.json({ limit: '15mb' }));
+app.use(express.static(PUB));
+app.use('/uploads', express.static(UP));
+
+/* atomic menu save — never corrupts, keeps one .bak */
+function saveMenu(json, cb) {
+  const tmp = DATA + '.tmp';
+  fs.writeFile(tmp, json, e => {
+    if (e) return cb(e);
+    fs.rename(DATA, BAK, () => fs.rename(tmp, DATA, cb));
+  });
+}
+
+app.get('/api/menu', (req, res) => {
+  fs.existsSync(DATA) ? res.sendFile(DATA) : res.json(null);
+});
+app.post('/api/menu', (req, res) => {
+  saveMenu(JSON.stringify(req.body), e =>
+    e ? res.status(500).json({ error: 'save failed' }) : res.json({ ok: true }));
+});
+
+app.get('/api/logos', (req, res) => {
+  fs.readdir(UP, (e, files) =>
+    res.json(e ? [] : files.filter(f => EXTS.includes(path.extname(f).toLowerCase()))
+      .map(f => '/uploads/' + f)));
+});
+app.post('/api/upload', store.single('logo'), (req, res) => {
+  req.file ? res.json({ url: '/uploads/' + req.file.filename })
+           : res.status(400).json({ error: 'no file' });
+});
+app.delete('/api/logo', (req, res) => {
+  const name = path.basename(req.query.f || '');
+  const p = path.join(UP, name);
+  if (p.startsWith(UP) && fs.existsSync(p)) fs.unlinkSync(p);
+  res.json({ ok: true });
+});
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  console.error('✖', err.message || err);
+  res.status(err.status || 400).json({ error: err.message || 'error' });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+  console.log('\n  ✅  Menu Builder running  →  http://localhost:' + PORT +
+              '\n      (phones on same Wi-Fi: http://<your-ip>:' + PORT + ')\n'));
+```
+
+## File 3 — `public/index.html` (final, all features merged)
+
+```html
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>দেশি জোটা — Menu Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Bangla:wght@400;500;600;700&family=Baloo+Da+2:wght@400;500;600;700&family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;600;700&family=Tiro+Bangla&display=swap" rel="stylesheet">
+<style>
+/* ================= CORE ================= */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+:root{
+  --bg:#f7f2e7; --ink:#2b2419; --muted:#857763; --line:#ddd1b8;
+  --accent:#8e1f28; --frame:#8e1f28; --fs:10; --c-inset:11;
+  --font-head:'Tiro Bangla','Noto Serif Bengali',serif;
+  --font-body:'Noto Sans Bengali',sans-serif;
+}
+html{background:#56524c}
+body{font-family:var(--font-body);display:flex;flex-direction:column;align-items:center;padding:30px 0 48px}
+i{font-style:normal}
+.sheet ::selection{background:color-mix(in srgb,var(--accent) 25%,transparent)}
+
+/* ================= A4 SHEET ================= */
+.sheet{position:relative;width:210mm;height:296mm;overflow:hidden;background:var(--bg);color:var(--ink);
+  padding:14mm 14mm 9mm;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+.sheet.frame-double::before{content:"";position:absolute;inset:5mm;border:.5mm solid var(--frame);pointer-events:none}
+.sheet.frame-double::after{content:"";position:absolute;inset:6.5mm;border:.15mm solid var(--frame);opacity:.55;pointer-events:none}
+.sheet.frame-simple::before{content:"";position:absolute;inset:5.5mm;border:.4mm solid var(--frame);pointer-events:none}
+.sheet.frame-simple::after{display:none}
+.sheet.frame-none::before,.sheet.frame-none::after{display:none}
+
+/* ================= HEADER ================= */
+.head{text-align:center}
+.logo{width:19mm;height:19mm;border-radius:50%;background:var(--accent);color:#fff;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;margin:0 auto 2.6mm;line-height:1.02;
+  box-shadow:0 0 0 .9mm var(--bg),0 0 0 1.3mm var(--frame)}
+.logo span{font-family:var(--font-head);font-weight:700;font-size:10.5pt}
+.logo.img{background:transparent}
+.logo.img span{display:none}
+.logo.drop{outline:2.5px dashed var(--accent);outline-offset:3px}
+.logo.img img{width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none}
+
+/* corner-anchored logo */
+.logo.corner{position:absolute;z-index:20;margin:0}
+.logo.corner.tr{top:calc(var(--c-inset,11)*1mm);right:calc(var(--c-inset,11)*1mm)}
+.logo.corner.tl{top:calc(var(--c-inset,11)*1mm);left:calc(var(--c-inset,11)*1mm)}
+.logo.corner.br{bottom:calc(var(--c-inset,11)*1mm);right:calc(var(--c-inset,11)*1mm)}
+.logo.corner.bl{bottom:calc(var(--c-inset,11)*1mm);left:calc(var(--c-inset,11)*1mm)}
+
+.brand{font-family:var(--font-head);font-weight:600;font-size:27pt;line-height:1.12;letter-spacing:.02em}
+.orn{display:flex;align-items:center;gap:3mm;margin:1.8mm 4mm 0;color:var(--accent)}
+.orn i{flex:1;height:.22mm;background:var(--line)}
+.orn span{font-size:8pt;line-height:1}
+.meta{font-size:9.3pt;color:var(--muted);margin-top:2mm;letter-spacing:.02em}
+.meta b{color:var(--accent);font-weight:700}
+.meta .dot{margin:0 1.6mm;color:var(--muted)}
+
+/* ================= MENU ================= */
+.cols{display:flex;margin-top:5mm}
+.col{flex:1;min-width:0}
+.col.left{padding-right:5.5mm}
+.col.right{padding-left:5.5mm;border-left:.22mm solid var(--line)}
+.sec{margin-bottom:2.7mm}
+.sec:last-child{margin-bottom:0}
+.sec>h2,.ex h3{display:flex;align-items:center;gap:2.4mm;font-family:var(--font-head);font-weight:600;
+  color:var(--accent);letter-spacing:.14em;margin-bottom:1.1mm}
+.sec>h2{font-size:calc(var(--fs)*1.12pt)}
+.ex h3{font-size:calc(var(--fs)*1.05pt)}
+.sec>h2 i,.ex h3 i{flex:1;height:.22mm;background:var(--line)}
+
+.row{display:flex;align-items:baseline;gap:1.5mm;padding:.62mm 0}
+.row .name{font-size:calc(var(--fs)*1pt);font-weight:500}
+.row .qty{color:var(--muted);font-size:.8em;margin-left:.8mm;white-space:nowrap;font-weight:400}
+.row .lead{flex:1;min-width:3mm;border-bottom:.28mm dotted var(--line);transform:translateY(-1mm)}
+.row .price{font-size:calc(var(--fs)*1.02pt);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.row.special{background:color-mix(in srgb,var(--accent) 10%,transparent);
+  border-radius:1.8mm;padding:1.1mm 2mm .9mm;margin:.6mm -1mm}
+.row.special .price{color:var(--accent)}
+.tag{display:inline-block;background:var(--accent);color:#fff;font-size:.66em;font-weight:700;letter-spacing:.06em;
+  padding:.3mm 1.8mm .7mm;border-radius:3mm;margin-right:1.6mm;vertical-align:.22em}
+
+.extras{display:flex;margin-top:4mm;padding-top:2.8mm;border-top:.22mm solid var(--line)}
+.ex{flex:1}
+.ex+.ex{border-left:.22mm solid var(--line);padding-left:6mm;margin-left:6mm}
+.ex .row{padding:.5mm 0}
+
+.foot{margin-top:3.4mm;padding-top:2.4mm;border-top:.22mm solid var(--line);text-align:center}
+.foot .note{font-size:8.4pt;color:var(--muted);letter-spacing:.04em}
+.foot .contact{font-size:9.3pt;margin-top:.9mm}
+.foot .contact b{color:var(--accent);font-weight:700}
+
+/* ================= EDIT AFFORDANCES ================= */
+[contenteditable]{outline:none;border-radius:2px;caret-color:var(--accent)}
+[contenteditable]:hover{outline:1px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:1px}
+[contenteditable]:focus{outline:1.5px solid var(--accent);outline-offset:1px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+
+/* ================= STUDIO PANEL ================= */
+.studio{position:fixed;top:16px;right:16px;width:266px;background:#fff;border-radius:14px;z-index:99;
+  box-shadow:0 14px 44px rgba(0,0,0,.28);font-family:system-ui,'Segoe UI',sans-serif;color:#222;overflow:hidden}
+.studio-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#1d1a17;color:#fff;
+  font-weight:600;font-size:12.5px;letter-spacing:.4px;gap:8px}
+.studio-head .pill{font-size:9px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:99px;background:#3a342e;color:#cbb}
+.studio-head .pill.server{background:#1f6b3a;color:#c9f0d5}
+.studio-head button{background:none;border:0;color:#fff;font-size:17px;cursor:pointer;line-height:1}
+.studio-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 120px);overflow:auto}
+.studio.min .studio-body{display:none}
+details{border:1px solid #eee;border-radius:10px;overflow:hidden}
+summary{cursor:pointer;padding:8px 11px;font-weight:700;font-size:12px;background:#fafafa;list-style:none;user-select:none}
+summary::before{content:"▸ ";color:#999}
+details[open] summary::before{content:"▾ "}
+details>div{padding:10px 11px;display:flex;flex-direction:column;gap:8px}
+select{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fafafa;font-size:12.5px;font-family:inherit}
+input[type=range]{flex:1;accent-color:#1d1a17;min-width:0}
+.swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sw{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #ccc;cursor:pointer;flex:0 0 auto}
+.sw.active{box-shadow:0 0 0 2px #111}
+input[type=color]{width:32px;height:25px;border:1px solid #ddd;border-radius:6px;padding:0;background:#fff;cursor:pointer}
+.ctl{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#444}
+.ctl>span{width:76px;flex:0 0 auto;color:#555}
+.ctl input[type=checkbox]{accent-color:#1d1a17;width:15px;height:15px}
+.ctl .val{width:36px;text-align:right;font-size:10.5px;color:#999;flex:0 0 auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.btns{display:flex;gap:7px}
+.btns .primary{flex:1;background:#1d1a17;color:#fff;border:0;padding:9px 8px;border-radius:9px;font-weight:600;font-size:12.5px;cursor:pointer}
+.btns .primary:hover{background:#000}
+.btns .ghost,.ghost{background:#fff;border:1px solid #ddd;border-radius:9px;padding:8px 10px;cursor:pointer;color:#a33;font-weight:600;font-size:12px}
+.ghost.neutral{color:#444}
+.rowbtns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+.rowbtns button{border:1px dashed #bbb;background:#fafafa;border-radius:8px;padding:7px 4px;cursor:pointer;font-size:11.5px;color:#444}
+.rowbtns button:hover{border-color:#666;background:#f1f1f1}
+.hint{font-size:11px;color:#888;line-height:1.55}
+.status{font-size:11px;color:#2a7a3f;font-weight:600}
+.dropzone{border:1.6px dashed #ccc;border-radius:10px;padding:12px;text-align:center;font-size:11.5px;color:#777;cursor:pointer}
+.dropzone:hover{border-color:#888;background:#fafafa}
+.lib{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.lib .thumb{position:relative;aspect-ratio:1;border:1.5px solid #eee;border-radius:8px;cursor:pointer;background:
+  repeating-conic-gradient(#f4f4f4 0 25%,#fff 0 50%) 0 0/12px 12px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.lib .thumb img{max-width:88%;max-height:88%}
+.lib .thumb.on{border-color:#111;box-shadow:0 0 0 1.5px #111}
+.lib .thumb .x{position:absolute;top:-1px;right:1px;width:16px;height:16px;background:#c33;color:#fff;border-radius:50%;
+  font-size:11px;line-height:15px;text-align:center;font-weight:700}
+.libnote{font-size:10.5px;color:#999;grid-column:1/-1}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(8px);background:#1d1a17;color:#fff;
+  padding:9px 18px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:100;font-family:system-ui}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.ovf{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#b3261e;color:#fff;
+  font:600 12.5px system-ui;padding:8px 16px;border-radius:99px;z-index:98;
+  box-shadow:0 8px 24px rgba(0,0,0,.3);display:none}
+.ovf.on{display:block}
+
+/* ================= PRINT ================= */
+@page{size:A4;margin:0}
+@media print{
+  html{background:#fff}
+  body{padding:0;display:block}
+  .studio,#toast,.ovf{display:none!important}
+  .sheet{margin:0;box-shadow:none}
+  [contenteditable]:hover,[contenteditable]:focus{outline:none;background:transparent}
+  .logo.drop{outline:none}
+}
+</style>
+</head>
+<body>
+
+<div class="sheet frame-double" id="sheet">
+
+  <header class="head">
+    <div class="logo" id="logoBox"><span class="lt">দেশি</span><span class="lt">জোটা</span></div>
+    <h1 class="brand">দেশি জোটা</h1>
+    <div class="orn"><i></i><span>❖</span><i></i></div>
+    <p class="meta">সাফুল্যার রোড়, ফিরিয়াল্লা মার্কেট প্লাজা, গাইবান্ধা<span class="dot">•</span><b>ফোন ০১৭৮৩ ৬৬ ৭৭ ৪৪</b></p>
+  </header>
+
+  <div class="cols">
+    <div class="col left">
+
+      <div class="sec">
+        <h2><i></i><span class="st">ভাত</span><i></i></h2>
+        <div class="row"><span class="name">সাদা ভাত<span class="qty">(অনলিমিটেড)</span></span><i class="lead"></i><span class="price">৫০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">বিরিয়ানি</span><i></i></h2>
+        <div class="row"><span class="name">চিকেন বিরিয়ানি<span class="qty">(হাফ)</span></span><i class="lead"></i><span class="price">১৩০/=</span></div>
+        <div class="row"><span class="name">মাটন বিরিয়ানি<span class="qty">(ফুল)</span></span><i class="lead"></i><span class="price">২০০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">খিচুড়ি</span><i></i></h2>
+        <div class="row"><span class="name">ভুনা খিচুড়ি<span class="qty">(মাটন • ফুল)</span></span><i class="lead"></i><span class="price">২৩০/=</span></div>
+        <div class="row"><span class="name">ভুনা খিচুড়ি<span class="qty">(মাটন • হাফ)</span></span><i class="lead"></i><span class="price">১৮০/=</span></div>
+        <div class="row"><span class="name">ভুনা খিচুড়ি<span class="qty">(মাংস ছাড়া • ১ প্লেট)</span></span><i class="lead"></i><span class="price">৫০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">ডাল</span><i></i></h2>
+        <div class="row"><span class="name">মুগ ডাল</span><i class="lead"></i><span class="price">২০/=</span></div>
+        <div class="row"><span class="name">বুটের ডাল</span><i class="lead"></i><span class="price">২০/=</span></div>
+        <div class="row"><span class="name">মুড়িঘণ্ট<span class="qty">(মাছের মাথা)</span></span><i class="lead"></i><span class="price">৮০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">সবজি ও ভাজি</span><i></i></h2>
+        <div class="row"><span class="name">মিক্সড ভেজিটেবল</span><i class="lead"></i><span class="price">৩০/=</span></div>
+        <div class="row"><span class="name">করলা ভাজি</span><i class="lead"></i><span class="price">৩০/=</span></div>
+        <div class="row"><span class="name">পাক ভাজি</span><i class="lead"></i><span class="price">৩০/=</span></div>
+        <div class="row"><span class="name">বেগুন ভাজি<span class="qty">(১ পিস)</span></span><i class="lead"></i><span class="price">২০/=</span></div>
+        <div class="row"><span class="name">পটল ভাজি<span class="qty">(২ পিস)</span></span><i class="lead"></i><span class="price">২০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">ভর্তা</span><i></i></h2>
+        <div class="row"><span class="name">শরিষ ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+        <div class="row"><span class="name">আলু ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+        <div class="row"><span class="name">বাদাম ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+        <div class="row"><span class="name">কালোজিরা ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+        <div class="row"><span class="name">চিংড়ি ভর্তা</span><i class="lead"></i><span class="price">১৫/=</span></div>
+        <div class="row"><span class="name">চিব ভর্তা</span><i class="lead"></i><span class="price">২০/=</span></div>
+        <div class="row"><span class="name">মাছ ভর্তা</span><i class="lead"></i><span class="price">৩০/=</span></div>
+        <div class="row"><span class="name">ঝটিকা ভর্তা</span><i class="lead"></i><span class="price">৪০/=</span></div>
+        <div class="row special"><span class="name"><span class="tag">কম্বো</span>ইকোনমি ভর্তা প্যাকেজ<span class="qty">(৪টি ভর্তা)</span></span><i class="lead"></i><span class="price">৫০/=</span></div>
+      </div>
+
+    </div>
+
+    <div class="col right">
+
+      <div class="sec">
+        <h2><i></i><span class="st">মুরগি</span><i></i></h2>
+        <div class="row"><span class="name">চিকেন কারি<span class="qty">(পাকিস্তানি)</span></span><i class="lead"></i><span class="price">১৪০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">গরু</span><i></i></h2>
+        <div class="row"><span class="name">গরু ভুনা<span class="qty">(ফুল)</span></span><i class="lead"></i><span class="price">৩০০/=</span></div>
+        <div class="row"><span class="name">গরু ভুনা<span class="qty">(থ্রি কোয়াটার)</span></span><i class="lead"></i><span class="price">২২০/=</span></div>
+        <div class="row"><span class="name">গরু ভুনা<span class="qty">(হাফ)</span></span><i class="lead"></i><span class="price">১৫০/=</span></div>
+        <div class="row"><span class="name">গরুর কালা ভুনা<span class="qty">(ফুল)</span></span><i class="lead"></i><span class="price">৩৪০/=</span></div>
+        <div class="row"><span class="name">গরুর কালা ভুনা<span class="qty">(থ্রি কোয়াটার)</span></span><i class="lead"></i><span class="price">২৪০/=</span></div>
+        <div class="row"><span class="name">গরুর কালা ভুনা<span class="qty">(হাফ)</span></span><i class="lead"></i><span class="price">১৯০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">হাঁস</span><i></i></h2>
+        <div class="row"><span class="name">হাঁসের মাংস<span class="qty">(ফুল)</span></span><i class="lead"></i><span class="price">৪০০/=</span></div>
+        <div class="row"><span class="name">হাঁসের মাংস<span class="qty">(থ্রি কোয়াটার)</span></span><i class="lead"></i><span class="price">৩০০/=</span></div>
+        <div class="row"><span class="name">হাঁসের মাংস<span class="qty">(হাফ)</span></span><i class="lead"></i><span class="price">২০০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">খাসি</span><i></i></h2>
+        <div class="row"><span class="name">খাসি<span class="qty">(১ পিস)</span></span><i class="lead"></i><span class="price">১৪০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">মাছ</span><i></i></h2>
+        <div class="row"><span class="name">রুই মাছ<span class="qty">(কারি)</span></span><i class="lead"></i><span class="price">১৪০/=</span></div>
+        <div class="row"><span class="name">দম্পিট রুই মাছ</span><i class="lead"></i><span class="price">১৫০/=</span></div>
+        <div class="row"><span class="name">ভেটকি মাছ<span class="qty">(দেশি)</span></span><i class="lead"></i><span class="price">১০০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">ডিম</span><i></i></h2>
+        <div class="row"><span class="name">ব্রয়লড এগ</span><i class="lead"></i><span class="price">২০/=</span></div>
+        <div class="row"><span class="name">ডিম<span class="qty">(হলুদ)</span></span><i class="lead"></i><span class="price">২৫/=</span></div>
+        <div class="row"><span class="name">ডিমের নেন্টোপোড়া</span><i class="lead"></i><span class="price">৩০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">কাবাব</span><i></i></h2>
+        <div class="row"><span class="name">চিকেন টিকিয়া</span><i class="lead"></i><span class="price">৪০/=</span></div>
+      </div>
+
+      <div class="sec">
+        <h2><i></i><span class="st">আচার ও চাটনি</span><i></i></h2>
+        <div class="row"><span class="name">আচার</span><i class="lead"></i><span class="price">২০/=</span></div>
+        <div class="row"><span class="name">চেম্পটার চাটনি</span><i class="lead"></i><span class="price">২০/=</span></div>
+        <div class="row"><span class="name">আলু-বেগুনের চাটনি</span><i class="lead"></i><span class="price">৩০/=</span></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="extras">
+    <div class="ex">
+      <h3><i></i><span class="st">দেজার্ট</span><i></i></h3>
+      <div class="row"><span class="name">ফিরনি</span><i class="lead"></i><span class="price">৫০/=</span></div>
+      <div class="row"><span class="name">জর্দা</span><i class="lead"></i><span class="price">৪০/=</span></div>
+      <div class="row"><span class="name">পুডিং</span><i class="lead"></i><span class="price">১০০/=</span></div>
+    </div>
+    <div class="ex">
+      <h3><i></i><span class="st">ড্রিংকস</span><i></i></h3>
+      <div class="row"><span class="name">বোরহানি<span class="qty">(১ গ্লাস)</span></span><i class="lead"></i><span class="price">৩০/=</span></div>
+      <div class="row"><span class="name">বোরহানি<span class="qty">(১ লিটার)</span></span><i class="lead"></i><span class="price">২২০/=</span></div>
+      <div class="row"><span class="name">মিনারেল ওয়াটার<span class="qty">(বাজার দর)</span></span><i class="lead"></i><span class="price">—</span></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <p class="note">সকল খাবারের মূল্য বাজার দরের উপর নির্ভরশীল</p>
+    <p class="contact">সাফুল্যার রোড়, ফিরিয়াল্লা মার্কেট প্লাজা, গাইবান্ধা &nbsp;—&nbsp; <b>ফোন ০১৭৮৩ ৬৬ ৭৭ ৪৪</b></p>
+  </div>
+</div>
+
+<!-- ================= MENU STUDIO ================= -->
+<div class="studio" id="studio">
+  <div class="studio-head"><span>🎛 MENU STUDIO</span><span class="pill" id="pill">…</span><button id="minBtn">–</button></div>
+  <div class="studio-body">
+
+    <details open><summary>🖼 Logo</summary><div>
+      <div class="dropzone" id="dropzone">⬆️ Upload logo — click or drag an image here</div>
+      <input type="file" id="logoFile" accept="image/*" hidden>
+      <div class="lib" id="lib"></div>
+      <div class="ctl"><span>Position</span>
+        <select id="lPos" style="flex:1">
+          <option value="tr">Top right corner</option>
+          <option value="tl">Top left corner</option>
+          <option value="br">Bottom right corner</option>
+          <option value="bl">Bottom left corner</option>
+          <option value="tc">Top center (old style)</option>
+        </select></div>
+      <div class="ctl"><span>Corner gap</span><input type="range" id="lInset" min="6" max="24" step="0.5"><span class="val" id="lInsetV"></span></div>
+      <div class="ctl"><span>Shape</span>
+        <select id="lShape" style="flex:1"><option value="circle">Circle</option><option value="rounded">Rounded</option><option value="square">Square</option></select></div>
+      <div class="ctl"><span>Size</span><input type="range" id="lSize" min="8" max="42" step="0.5"><span class="val" id="lSizeV"></span></div>
+      <div class="ctl"><span>Zoom</span><input type="range" id="lZoom" min="50" max="300" step="1"><span class="val" id="lZoomV"></span></div>
+      <div class="grid2">
+        <div class="ctl"><span>Move X</span><input type="range" id="lX" min="-60" max="60" step="1"></div>
+        <div class="ctl"><span>Move Y</span><input type="range" id="lY" min="-60" max="60" step="1"></div>
+      </div>
+      <div class="ctl"><span>Rotate</span><input type="range" id="lRot" min="-180" max="180" step="1"><span class="val" id="lRotV"></span></div>
+      <div class="grid2">
+        <div class="ctl"><span>Ring</span><input type="range" id="lRing" min="0" max="4" step="0.1"></div>
+        <div class="ctl"><span>Gap</span><input type="range" id="lGap" min="0" max="4" step="0.1"></div>
+      </div>
+      <div class="ctl"><span>Ring color</span><input type="color" id="lRingC"></div>
+      <div class="ctl"><span>Fill bg</span><input type="checkbox" id="lBgOn"><input type="color" id="lBgC"></div>
+      <div class="ctl"><span>Shadow</span><input type="checkbox" id="lShadow"></div>
+      <button class="ghost" id="lRm">✕ Remove logo (back to text logo)</button>
+    </div></details>
+
+    <details><summary>🎨 Design</summary><div>
+      <label class="ctl"><span>Head font</span>
+        <select id="fontHead"><option>Tiro Bangla</option><option>Noto Serif Bengali</option><option>Noto Sans Bengali</option><option>Hind Siliguri</option><option>Anek Bangla</option><option>Baloo Da 2</option></select></label>
+      <label class="ctl"><span>Body font</span>
+        <select id="fontBody"><option>Noto Sans Bengali</option><option>Hind Siliguri</option><option>Anek Bangla</option><option>Noto Serif Bengali</option><option>Tiro Bangla</option></select></label>
+      <div class="ctl"><span>Text size</span><input type="range" id="fs" min="8.5" max="11.5" step="0.1"><span class="val" id="fsVal"></span></div>
+      <div class="ctl" style="flex-direction:column;align-items:stretch;gap:5px"><span>Background</span><div class="swatches" id="bgSw"></div></div>
+      <div class="ctl" style="flex-direction:column;align-items:stretch;gap:5px"><span>Accent color</span><div class="swatches" id="acSw"></div></div>
+      <label class="ctl"><span>Frame</span>
+        <select id="frameSel" style="flex:1"><option value="double">Double</option><option value="simple">Simple</option><option value="none">None</option></select></label>
+    </div></details>
+
+    <details open><summary>📝 Items & Sections</summary><div>
+      <div class="rowbtns">
+        <button id="rowUp">↑ Row up</button><button id="rowDn">↓ Row down</button><button id="tglSp">★ Special</button>
+        <button id="addRow">＋ Add row</button><button id="delRow">－ Delete row</button><button id="dupRow">⧉ Duplicate</button>
+        <button id="addSec">＋ Add section</button><button id="delSec">－ Delete section</button><button id="mvSec">⇅ Section →</button>
+      </div>
+      <p class="hint">✏️ Click any text on the sheet to edit it. Click inside a row/section first, then use the buttons above.</p>
+    </div></details>
+
+    <details><summary>💾 Data</summary><div>
+      <span class="status" id="status">—</span>
+      <div class="btns">
+        <button class="ghost neutral" id="expBtn">⬇ Export backup</button>
+        <button class="ghost neutral" id="impBtn">⬆ Import backup</button>
+      </div>
+      <input type="file" id="impFile" accept=".json" hidden>
+      <button class="ghost" id="resetBtn">↺ Reset everything to default</button>
+    </div></details>
+
+    <div class="btns"><button class="primary" id="printBtn">🖨 Print / Save PDF (A4)</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div class="ovf" id="ovf">⚠ Content exceeds one A4 page — remove rows or lower text size</div>
+
+<script>
+const sheet=document.getElementById('sheet'), root=document.documentElement, $=id=>document.getElementById(id);
+const KEY='deshi-jota-menu-v3';
+let MODE='local', lastRow=null, lastSec=null;
+
+const DEF_LOGO={src:'',shape:'circle',size:22,zoom:100,x:0,y:0,rot:0,ring:1.2,gap:0.8,
+  ringColor:'#111111',bgOn:false,bg:'#ffffff',shadow:true,pos:'tr',inset:11};
+const DEFAULTS={fontHead:'Tiro Bangla',fontBody:'Noto Sans Bengali',fs:10,theme:'ivory',accent:'#8e1f28',frame:'double',logo:{...DEF_LOGO}};
+let S=JSON.parse(JSON.stringify(DEFAULTS));
+
+const THEMES={
+  ivory:{bg:'#f7f2e7',ink:'#2b2419',muted:'#857763',line:'#ddd1b8'},
+  paper:{bg:'#ffffff',ink:'#2d2a26',muted:'#8f8b84',line:'#e6e2da'},
+  kraft:{bg:'#e9dcc2',ink:'#342a1b',muted:'#7f6e52',line:'#cfc09f'},
+  sage:{bg:'#eef0e3',ink:'#2c3326',muted:'#7c8468',line:'#d5d9c1'},
+  blush:{bg:'#f8ece3',ink:'#39241a',muted:'#9b8172',line:'#e7d2c2'},
+  night:{bg:'#241f1c',ink:'#f1e8d7',muted:'#a5968a',line:'#4b423a'}
+};
+const ACCENTS=['#8e1f28','#1e6b47','#1f3a5f','#b4532a','#9a6b1e','#1c1c1c'];
+
+/* ---------- helpers ---------- */
+let toastT;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2200);}
+function status(m){$('status').textContent=m;}
+function lum(hex){const n=parseInt(hex.slice(1),16);return(0.2126*(n>>16&255)+0.7152*(n>>8&255)+0.0722*(n&255))/255;}
+function checkOverflow(){$('ovf').classList.toggle('on',sheet.scrollHeight>sheet.clientHeight+2);}
+
+/* ---------- editable ---------- */
+function editable(el){el.setAttribute('contenteditable','plaintext-only');if(el.contentEditable!=='plaintext-only')el.setAttribute('contenteditable','true');}
+function makeEditable(){
+  document.querySelectorAll('.sheet .st,.sheet .name,.sheet .qty,.sheet .price,.sheet .tag,.sheet .lt,.sheet .brand,.sheet .meta,.sheet .note,.sheet .contact,.sheet .orn span').forEach(editable);
+}
+
+/* ---------- logo ---------- */
+function logoStyle(){
+  const l=S.logo, box=$('logoBox');
+  box.classList.toggle('img',!!l.src);
+  box.classList.remove('corner','tr','tl','br','bl');
+  if(l.pos!=='tc') box.classList.add('corner',l.pos);
+  root.style.setProperty('--c-inset',l.inset);
+  if(!l.src){box.style.cssText='';return;}
+  const rad=l.shape==='circle'?'50%':l.shape==='rounded'?'20%':'0%';
+  const sh=[];
+  if(l.gap>0) sh.push(`0 0 0 ${l.gap}mm var(--bg)`);
+  if(l.ring>0) sh.push(`0 0 0 ${(l.gap+l.ring).toFixed(2)}mm ${l.ringColor}`);
+  if(l.shadow) sh.push('0 2.5mm 6mm rgba(0,0,0,.30)');
+  box.style.cssText=`border-radius:${rad};overflow:hidden;width:${l.size}mm;height:${l.size}mm;`+
+    `box-shadow:${sh.length?sh.join(','):'none'};background:${l.bgOn?l.bg:'transparent'}`;
+  const img=$('logoImg');
+  if(img) img.style.transform=`translate(${l.x}%,${l.y}%) scale(${l.zoom/100}) rotate(${l.rot}deg)`;
+}
+function setLogoSrc(src){
+  S.logo.src=src||'';
+  const box=$('logoBox');
+  if(src){
+    let img=$('logoImg');
+    if(!img){img=document.createElement('img');img.id='logoImg';img.draggable=false;img.alt='logo';box.appendChild(img);}
+    img.src=src;
+  }else{
+    const img=$('logoImg'); if(img) img.remove();
+  }
+  logoStyle(); persist();
+}
+async function handleLogoFile(file){
+  if(!file||!file.type.startsWith('image/')) return toast('Please choose an image file');
+  if(MODE==='server'){
+    try{
+      const fd=new FormData(); fd.append('logo',file);
+      const r=await fetch('/api/upload',{method:'POST',body:fd}); const d=await r.json();
+      if(d.url){setLogoSrc(d.url); refreshLib(); return toast('Logo uploaded ✓');}
+    }catch(e){}
+  }
+  const rd=new FileReader();
+  rd.onload=()=>{const im=new Image();im.onload=()=>{
+    const enc=(sc,mime,q)=>{const c=document.createElement('canvas');
+      c.width=Math.max(1,Math.round(im.width*sc));c.height=Math.max(1,Math.round(im.height*sc));
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+      return c.toDataURL(mime,q);};
+    const isPng=file.type==='image/png';
+    let s=Math.min(1,560/Math.max(im.width,im.height));
+    let url=enc(s,isPng?'image/png':'image/jpeg',.82);
+    if(url.length>1200000){url=enc(s,'image/jpeg',.82);}
+    while(url.length>900000&&s>.25){s*=.75;url=enc(s,isPng?'image/png':'image/jpeg',.8);}
+    setLogoSrc(url);toast('Logo added (browser mode)');
+  };im.src=rd.result;};
+  rd.readAsDataURL(file);
+}
+async function refreshLib(){
+  const lib=$('lib'); lib.innerHTML='';
+  if(MODE!=='server'){lib.innerHTML='<p class="libnote">Logo library & hosting work in server mode (run server.js). Browser mode embeds the logo directly.</p>';return;}
+  try{
+    const list=await (await fetch('/api/logos',{cache:'no-store'})).json();
+    if(!list.length){lib.innerHTML='<p class="libnote">No logos uploaded yet.</p>';return;}
+    list.forEach(u=>{
+      const d=document.createElement('div');d.className='thumb'+(S.logo.src===u?' on':'');
+      const im=new Image();im.src=u;d.appendChild(im);
+      const x=document.createElement('span');x.className='x';x.textContent='×';
+      x.onclick=async ev=>{ev.stopPropagation();await fetch('/api/logo?f='+encodeURIComponent(u.split('/').pop()),{method:'DELETE'});if(S.logo.src===u)setLogoSrc('');refreshLib();toast('Logo deleted');};
+      d.onclick=()=>{setLogoSrc(u);refreshLib();};
+      d.appendChild(x);lib.appendChild(d);
+    });
+  }catch(e){}
+}
+
+/* ---------- design apply ---------- */
+function apply(){
+  root.style.setProperty('--fs',S.fs);
+  root.style.setProperty('--font-head',`'${S.fontHead}','Noto Serif Bengali',serif`);
+  root.style.setProperty('--font-body',`'${S.fontBody}','Noto Sans Bengali',sans-serif`);
+  const t=S.theme==='custom'?S.custom:(THEMES[S.theme]||THEMES.ivory);
+  ['bg','ink','muted','line'].forEach(k=>root.style.setProperty('--'+k,t[k]));
+  root.style.setProperty('--accent',S.accent);
+  root.style.setProperty('--frame',S.accent);
+  sheet.classList.remove('frame-double','frame-simple','frame-none');
+  sheet.classList.add('frame-'+S.frame);
+  $('fsVal').textContent=Number(S.fs).toFixed(1)+'pt';
+  $('fontHead').value=S.fontHead;$('fontBody').value=S.fontBody;$('fs').value=S.fs;$('frameSel').value=S.frame;
+  document.querySelectorAll('#bgSw .sw').forEach(b=>b.classList.toggle('active',b.dataset.id===S.theme));
+  document.querySelectorAll('#acSw .sw').forEach(b=>b.classList.toggle('active',b.dataset.c===S.accent));
+  logoStyle();
+}
+function syncLogoUI(){
+  const l=S.logo;
+  $('lPos').value=l.pos;$('lInset').value=l.inset;$('lInsetV').textContent=l.inset+'mm';
+  $('lShape').value=l.shape;$('lSize').value=l.size;$('lZoom').value=l.zoom;$('lX').value=l.x;$('lY').value=l.y;
+  $('lRot').value=l.rot;$('lRing').value=l.ring;$('lGap').value=l.gap;$('lRingC').value=l.ringColor;
+  $('lBgC').value=l.bg;$('lBgOn').checked=l.bgOn;$('lShadow').checked=l.shadow;
+  $('lSizeV').textContent=l.size+'mm';$('lZoomV').textContent=l.zoom+'%';$('lRotV').textContent=l.rot+'°';
+}
+
+/* ---------- persistence ---------- */
+let saveT;
+function persist(){clearTimeout(saveT);saveT=setTimeout(doSave,800);}
+function snapshot(){return JSON.stringify({S,html:sheet.innerHTML,ts:Date.now()});}
+async function doSave(){
+  const data=snapshot();
+  try{localStorage.setItem(KEY,data);}
+  catch(e){if(MODE!=='server')toast('⚠ Browser storage full — run the server (npm start) so nothing is lost');}
+  if(MODE==='server'){
+    try{await fetch('/api/menu',{method:'POST',headers:{'Content-Type':'application/json'},body:data});
+      status('💾 Saved to server · '+new Date().toLocaleTimeString());}
+    catch(e){status('⚠️ Server save failed (kept in browser)');}
+  }else status('💾 Saved in this browser · '+new Date().toLocaleTimeString());
+  checkOverflow();
+}
+/* never lose work: flush when tab hidden or closed */
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')doSave();});
+window.addEventListener('pagehide',()=>{
+  try{const p=snapshot();localStorage.setItem(KEY,p);
+    if(MODE==='server')navigator.sendBeacon('/api/menu',new Blob([p],{type:'application/json'}));
+  }catch(e){}
+});
+
+async function loadAll(){
+  try{await fetch('/api/menu',{cache:'no-store'});MODE='server';}catch(e){MODE='local';}
+  const pill=$('pill');pill.textContent=MODE==='server'?'SERVER':'BROWSER';pill.classList.toggle('server',MODE==='server');
+  let d=null;
+  if(MODE==='server'){try{d=await (await fetch('/api/menu',{cache:'no-store'})).json();}catch(e){}}
+  if(!d){try{d=JSON.parse(localStorage.getItem(KEY));}catch(e){}}
+  if(d&&d.S){
+    S={...DEFAULTS,...d.S};
+    S.logo={...DEF_LOGO,...(d.S.logo||{})};
+    if(d.html)sheet.innerHTML=d.html;
+  }
+  makeEditable();apply();syncLogoUI();refreshLib();checkOverflow();
+  status(MODE==='server'?'🟢 Connected to server':'🟡 Browser-only mode (no server)');
+}
+
+/* ---------- swatches ---------- */
+Object.entries(THEMES).forEach(([id,t])=>{
+  const b=document.createElement('button');b.className='sw';b.style.background=t.bg;b.title=id;b.dataset.id=id;
+  b.onclick=()=>{S.theme=id;apply();persist();};$('bgSw').appendChild(b);
+});
+const bc=document.createElement('input');bc.type='color';bc.title='Custom background';$('bgSw').appendChild(bc);
+bc.addEventListener('input',e=>{
+  const hex=e.target.value,L=lum(hex);S.theme='custom';
+  S.custom=L<0.45?{bg:hex,ink:'#f2ead8',muted:'#b4a48e',line:'rgba(255,255,255,.28)'}
+                 :{bg:hex,ink:'#2b2419',muted:'#857763',line:'#ddd1b8'};
+  apply();persist();
+});
+ACCENTS.forEach(c=>{
+  const b=document.createElement('button');b.className='sw';b.style.background=c;b.title=c;b.dataset.c=c;
+  b.onclick=()=>{S.accent=c;apply();persist();};$('acSw').appendChild(b);
+});
+const ac=document.createElement('input');ac.type='color';ac.title='Custom accent';$('acSw').appendChild(ac);
+ac.addEventListener('input',e=>{S.accent=e.target.value;apply();persist();});
+
+/* ---------- design controls ---------- */
+$('fontHead').onchange=e=>{S.fontHead=e.target.value;apply();persist();};
+$('fontBody').onchange=e=>{S.fontBody=e.target.value;apply();persist();};
+$('fs').oninput=e=>{S.fs=parseFloat(e.target.value);apply();persist();};
+$('frameSel').onchange=e=>{S.frame=e.target.value;apply();persist();};
+
+/* ---------- logo controls ---------- */
+$('lPos').onchange=e=>{S.logo.pos=e.target.value;logoStyle();persist();};
+$('lInset').addEventListener('input',e=>{S.logo.inset=parseFloat(e.target.value);logoStyle();syncLogoUI();persist();});
+$('lShape').onchange=e=>{S.logo.shape=e.target.value;logoStyle();persist();};
+[['lSize','size',parseFloat],['lZoom','zoom',parseFloat],['lX','x',parseFloat],['lY','y',parseFloat],
+ ['lRot','rot',parseFloat],['lRing','ring',parseFloat],['lGap','gap',parseFloat]].forEach(([id,k,fn])=>{
+  $(id).addEventListener('input',e=>{S.logo[k]=fn(e.target.value);logoStyle();syncLogoUI();persist();});
+});
+$('lRingC').addEventListener('input',e=>{S.logo.ringColor=e.target.value;logoStyle();persist();});
+$('lBgC').addEventListener('input',e=>{S.logo.bg=e.target.value;logoStyle();persist();});
+$('lBgOn').addEventListener('change',e=>{S.logo.bgOn=e.target.checked;logoStyle();persist();});
+$('lShadow').addEventListener('change',e=>{S.logo.shadow=e.target.checked;logoStyle();persist();});
+$('lRm').onclick=()=>{setLogoSrc('');refreshLib();toast('Logo removed');};
+$('dropzone').onclick=()=>$('logoFile').click();
+$('logoFile').onchange=e=>{handleLogoFile(e.target.files[0]);e.target.value='';};
+const lb=$('logoBox');
+['dragover','dragenter'].forEach(ev=>lb.addEventListener(ev,e=>{e.preventDefault();lb.classList.add('drop');}));
+['dragleave','drop'].forEach(ev=>lb.addEventListener(ev,e=>{e.preventDefault();lb.classList.remove('drop');}));
+lb.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)handleLogoFile(f);});
+
+/* ---------- items / sections ---------- */
+sheet.addEventListener('focusin',e=>{
+  lastRow=e.target.closest('.row')||lastRow;
+  lastSec=e.target.closest('.sec,.ex')||lastSec;
+});
+function freshRow(){const r=document.createElement('div');r.className='row';
+  r.innerHTML='<span class="name">নতুন আইটেম</span><i class="lead"></i><span class="price">০০/=</span>';
+  r.querySelectorAll('.name,.price').forEach(editable);return r;}
+$('addRow').onclick=()=>{
+  const r=freshRow();
+  if(lastRow&&lastRow.isConnected)lastRow.after(r);
+  else (lastSec&&lastSec.isConnected?lastSec:document.querySelector('.sec')).appendChild(r);
+  lastRow=r;persist();r.querySelector('.name').focus();};
+$('delRow').onclick=()=>{if(lastRow&&lastRow.isConnected){lastRow.remove();lastRow=null;persist();}else toast('Click inside a row first');};
+$('dupRow').onclick=()=>{
+  if(!(lastRow&&lastRow.isConnected))return toast('Click inside a row first');
+  const c=lastRow.cloneNode(true);c.querySelectorAll('.name,.qty,.price,.tag').forEach(editable);
+  lastRow.after(c);lastRow=c;persist();};
+$('rowUp').onclick=()=>{if(lastRow&&lastRow.isConnected){const s=lastRow.previousElementSibling;if(s)lastRow.before(s);persist();}};
+$('rowDn').onclick=()=>{if(lastRow&&lastRow.isConnected){const s=lastRow.nextElementSibling;if(s)lastRow.after(s);persist();}};
+$('tglSp').onclick=()=>{
+  if(!(lastRow&&lastRow.isConnected))return toast('Click inside a row first');
+  lastRow.classList.toggle('special');
+  if(lastRow.classList.contains('special')){
+    if(!lastRow.querySelector('.tag')){const tg=document.createElement('span');tg.className='tag';tg.textContent='কম্বো';editable(tg);lastRow.querySelector('.name').prepend(tg);}
+  }else{const tg=lastRow.querySelector('.tag');if(tg)tg.remove();}
+  persist();};
+$('addSec').onclick=()=>{
+  const sec=document.createElement('div');sec.className='sec';
+  sec.innerHTML='<h2><i></i><span class="st">নতুন সেকশন</span><i></i></h2>';
+  sec.appendChild(freshRow());
+  if(lastSec&&lastSec.isConnected&&lastSec.classList.contains('sec'))lastSec.after(sec);
+  else document.querySelector('.col').appendChild(sec);
+  sec.querySelector('.st').setAttribute('contenteditable','true');
+  lastSec=sec;persist();toast('Section added');};
+$('delSec').onclick=()=>{
+  if(!(lastSec&&lastSec.isConnected))return toast('Click inside a section first');
+  if(lastSec.classList.contains('ex'))return toast('Dessert/Drinks bar: edit text instead');
+  const sibs=lastSec.parentElement.querySelectorAll(':scope > .sec');
+  if(sibs.length<=1)return toast('A column needs at least one section');
+  if(confirm('Delete this whole section?')){lastSec.remove();lastSec=null;persist();}};
+$('mvSec').onclick=()=>{
+  if(!(lastSec&&lastSec.isConnected&&lastSec.classList.contains('sec')))return toast('Click inside a section first');
+  const cols=document.querySelectorAll('.col');
+  const target=lastSec.parentElement===cols[0]?cols[1]:cols[0];
+  target.appendChild(lastSec);persist();toast('Section moved to other column');};
+
+/* ---------- data ---------- */
+$('expBtn').onclick=()=>{
+  const b=new Blob([JSON.stringify({S,html:sheet.innerHTML},null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='menu-backup.json';a.click();toast('Backup downloaded');};
+$('impBtn').onclick=()=>$('impFile').click();
+$('impFile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);
+    S={...DEFAULTS,...d.S};S.logo={...DEF_LOGO,...(d.S&&d.S.logo||{})};
+    if(d.html)sheet.innerHTML=d.html;
+    makeEditable();apply();syncLogoUI();refreshLib();checkOverflow();persist();toast('Backup imported ✓');
+  }catch(err){toast('Invalid backup file');}};
+  r.readAsText(f);e.target.value='';};
+$('resetBtn').onclick=()=>{if(confirm('Reset ALL text, logo and design to default?')){localStorage.removeItem(KEY);location.reload();}};
+$('printBtn').onclick=()=>window.print();
+$('minBtn').onclick=()=>{const s=$('studio');s.classList.toggle('min');$('minBtn').textContent=s.classList.contains('min')?'+':'–';};
+sheet.addEventListener('input',persist);
+
+loadAll();
+</script>
+</body>
+</html>
+```
+
+---
+
+## 🗜 Make the zip
+
+**Windows (easiest):** right-click the `menu-builder` folder → **Send to → Compressed (zipped) folder** → done: `menu-builder.zip`
+
+**Windows (command):**
+```powershell
+Compress-Archive -Path .\menu-builder -DestinationPath .\menu-builder.zip
+```
+
+**macOS / Linux:**
+```bash
+zip -r menu-builder.zip menu-builder -x "menu-builder/node_modules/*" "menu-builder/uploads/*" "menu-builder/menu-data*"
+```
+
+> Tip: zip **before** running `npm install` — `node_modules` is hundreds of MB and the recipient doesn't need it (they run `npm install` themselves). Exclude `uploads/` and `menu-data*` too if you don't want your logos/data inside.
+
+Anyone who receives the zip just needs **Node.js installed**, then: extract → `npm install` → `npm start` → open `localhost:3000`.
+
+**Included in this package (final state):** corner logo (top-right default, 4 corners + center, gap slider), full logo editor + server-hosted library, all 8 review fixes (atomic saves with `.bak`, crash-proof error handler, storage-quota-safe logos, A4 overflow warning, multer 2.x, faster sliders/saves/hover).
+
+Want me to also produce a **single-file portable edition** (one `menu.html`, no Node needed — logo embedded, saves in browser) as a fallback for the print shop's PC?
